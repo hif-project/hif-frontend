@@ -66,21 +66,6 @@ struct real_number_t {
 
 /// @brief Data about generate procedures.
 struct module_or_generate_item_declaration_t {
-    /// @brief Constructor.
-    module_or_generate_item_declaration_t();
-
-    /// @brief Destructor.
-    ~module_or_generate_item_declaration_t();
-
-    /// @brief Copy constructor.
-    /// @param o The object to copy.
-    module_or_generate_item_declaration_t(const module_or_generate_item_declaration_t &o);
-
-    /// @brief Assignment operator.
-    /// @param o The object to copy.
-    /// @return Reference to the current object.
-    auto operator=(const module_or_generate_item_declaration_t &o) -> module_or_generate_item_declaration_t &;
-
     hif::BList<hif::Declaration> *net_declaration;      ///< List of net declarations.
     hif::BList<hif::Declaration> *reg_declaration;      ///< List of register declarations.
     hif::BList<hif::Declaration> *integer_declaration;  ///< List of integer declarations.
@@ -97,30 +82,13 @@ struct module_or_generate_item_declaration_t {
 
 /// @brief Data about a module or generate item.
 struct module_or_generate_item_t {
-    /// @brief Constructor.
-    module_or_generate_item_t();
-
-    /// @brief Destructor.
-    ~module_or_generate_item_t();
-
-    /// @brief Copy constructor.
-    /// @param o The object to copy.
-    module_or_generate_item_t(const module_or_generate_item_t &o);
-
-    /// @brief Assignment operator.
-    /// @param o The object to copy.
-    /// @return Reference to the current object.
-    auto operator=(const module_or_generate_item_t &o) -> module_or_generate_item_t &;
-
     hif::Contents *initial_construct;                    ///< Pointer to the initial construct.
     hif::BList<hif::Const> *local_parameter_declaration; ///< List of local parameter declarations.
     hif::StateTable *always_construct;                   ///< Pointer to the always construct.
     hif::StateTable *analog_construct;                   ///< Pointer to the analog construct.
     hif::BList<hif::Assign> *continuous_assign;          ///< List of continuous assignments.
     hif::BList<hif::Instance> *module_instantiation;     ///< List of module instantiations.
-
-    /// @brief The module item.
-    module_or_generate_item_declaration_t *module_or_generate_item_declaration;
+    module_or_generate_item_declaration_t *module_or_generate_item_declaration; ///< The module item.
 };
 
 /// @brief Data about a non-port module item.
@@ -210,13 +178,6 @@ struct event_control_t {
 };
 
 struct event_expression_t {
-    event_expression_t();
-
-    event_expression_t(const event_expression_t &e);
-
-    auto operator=(const event_expression_t &e) -> event_expression_t &;
-
-    virtual ~event_expression_t();
 
     hif::Value *expression;
     hif::Value *posedgeExpression;
@@ -226,14 +187,6 @@ struct event_expression_t {
 };
 
 struct analog_event_expression_t : public event_expression_t {
-    analog_event_expression_t();
-
-    analog_event_expression_t(const analog_event_expression_t &a);
-
-    auto operator=(const analog_event_expression_t &a) -> analog_event_expression_t &;
-
-    ~analog_event_expression_t() override;
-
     std::list<std::string> *analysis_identifier_list;
     hif::BList<hif::Value> *or_analog_event_expression;
     // analog_event_functions
@@ -244,12 +197,6 @@ struct analog_event_expression_t : public event_expression_t {
 };
 
 struct analog_event_control_t : public event_control_t {
-    analog_event_control_t();
-    ~analog_event_control_t() override;
-
-    analog_event_control_t(const analog_event_control_t &o);
-
-    auto operator=(const analog_event_control_t &o) -> analog_event_control_t &;
 
     analog_event_expression_t *analog_event_expression;
 
@@ -257,9 +204,6 @@ struct analog_event_control_t : public event_control_t {
 };
 
 struct statement_t {
-    statement_t();
-    statement_t(const statement_t &e);
-    auto operator=(const statement_t &e) -> statement_t &;
 
     // ** Mutually exclusive fields **
 
@@ -292,9 +236,6 @@ struct statement_t {
 };
 
 struct analog_statement_t {
-    analog_statement_t();
-    analog_statement_t(const analog_statement_t &e);
-    auto operator=(const analog_statement_t &e) -> analog_statement_t &;
 
     // ** Mutually exclusive fields **
 
@@ -318,9 +259,6 @@ struct analog_statement_t {
 };
 
 struct procedural_timing_control_t {
-    procedural_timing_control_t()
-
-        = default;
 
     hif::Value *delay_control{nullptr};
     event_control_t *event_control{nullptr};
@@ -329,9 +267,6 @@ struct procedural_timing_control_t {
 };
 
 struct net_ams_decl_identifier_assignment_t {
-    net_ams_decl_identifier_assignment_t()
-
-        = default;
 
     hif::Value *identifier{nullptr};
 
@@ -341,9 +276,8 @@ struct net_ams_decl_identifier_assignment_t {
 };
 
 struct discipline_and_modifiers_t {
-    discipline_and_modifiers_t()
 
-        = default;
+    discipline_and_modifiers_t() = default;
 
     discipline_and_modifiers_t(const discipline_and_modifiers_t &a)
         : discipline_identifier(hif::copy(a.discipline_identifier))
@@ -362,9 +296,8 @@ struct discipline_and_modifiers_t {
 };
 
 struct discipline_identifier_signed_range_t {
-    discipline_identifier_signed_range_t()
 
-        = default;
+    discipline_identifier_signed_range_t() = default;
 
     discipline_identifier_signed_range_t(const discipline_identifier_signed_range_t &a)
         : discipline_identifier(hif::copy(a.discipline_identifier))
@@ -379,15 +312,6 @@ struct discipline_identifier_signed_range_t {
 };
 
 struct module_instance_and_net_ams_decl_identifier_assignment_t {
-    module_instance_and_net_ams_decl_identifier_assignment_t()
-
-        = default;
-
-    module_instance_and_net_ams_decl_identifier_assignment_t(
-        const module_instance_and_net_ams_decl_identifier_assignment_t &a)
-
-        = default;
-
     std::list<net_ams_decl_identifier_assignment_t *> *net_ams_decl_identifier_assignment_list{nullptr};
     hif::Instance *name_of_module_instance{nullptr};
 
@@ -395,9 +319,23 @@ struct module_instance_and_net_ams_decl_identifier_assignment_t {
 };
 
 struct analog_function_item_declaration_t {
-    analog_function_item_declaration_t();
-    analog_function_item_declaration_t(const analog_function_item_declaration_t &a);
-    ~analog_function_item_declaration_t();
+
+    analog_function_item_declaration_t() = default;
+
+    analog_function_item_declaration_t(const analog_function_item_declaration_t &a)
+        : input_declaration_identifiers()
+        , output_declaration_identifiers()
+        , inout_declaration_identifiers()
+        , analog_block_item_declaration()
+    {
+        hif::copy(a.input_declaration_identifiers, input_declaration_identifiers);
+        hif::copy(a.output_declaration_identifiers, output_declaration_identifiers);
+        hif::copy(a.inout_declaration_identifiers, inout_declaration_identifiers);
+        hif::copy(a.analog_block_item_declaration, analog_block_item_declaration);
+    }
+
+    ~analog_function_item_declaration_t() = default;
+
     hif::BList<hif::Port> input_declaration_identifiers;
     hif::BList<hif::Port> output_declaration_identifiers;
     hif::BList<hif::Port> inout_declaration_identifiers;
@@ -430,10 +368,6 @@ struct timing_check_event_control_t {
 };
 
 struct generate_block_t {
-    generate_block_t();
-    ~generate_block_t();
-    generate_block_t(const generate_block_t &a);
-    auto operator=(const generate_block_t &a) -> generate_block_t &;
     std::string generate_block_identifier_opt;
     std::list<module_or_generate_item_t *> *module_or_generate_item_list;
 };

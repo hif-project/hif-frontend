@@ -710,7 +710,7 @@ auto PostParsingVisitor_step2::visitStateTable(StateTable &o) -> int
     hif::semantics::collectSymbols(list, assertion->parameterAssigns.front()->getValue(), _sem);
     hif::manipulation::AddUniqueObjectOptions opt;
     opt.copyIfUnique = true;
-    for (auto symbol : list) {
+    for (auto *symbol : list) {
         auto *libInst = dynamic_cast<Instance *>(symbol);
         if (libInst != nullptr) {
             continue;
@@ -1485,7 +1485,7 @@ void PostParsingVisitor_step2::_addStandardOperatorOverloads(LibraryDef *o)
 
 void PostParsingVisitor_step2::_removeStandardOperatorOverloads()
 {
-    for (auto sub : _operators) {
+    for (auto *sub : _operators) {
         sub->replace(nullptr);
         delete sub;
     }
@@ -1747,7 +1747,7 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
 
     // Collecting info
     hif::Trash trash;
-    for (auto pa : partials) {
+    for (auto *pa : partials) {
         hif::analysis::IndexInfo index;
 
         Value *partial = pa->getPartialBind();
@@ -1776,7 +1776,7 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
 
     messageAssert(concat != nullptr, "Cannot resolve partial binding", first, _sem);
 
-    for (auto pa : partials) {
+    for (auto *pa : partials) {
         if (pa == first) {
             continue;
         }

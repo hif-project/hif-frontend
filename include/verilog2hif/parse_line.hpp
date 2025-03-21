@@ -60,6 +60,7 @@ protected:
     /// (e.g.: ../dir1/dir2/foo.v), the function returns the file name (foo.v).
     static auto _cleanFileName(const std::string &fileName) -> std::string;
 
+private:
     /// @brief Function to extract the path of the verilog source file.
     Files _amsFiles;
 };

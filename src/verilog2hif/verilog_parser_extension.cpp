@@ -540,15 +540,16 @@ auto VerilogParser::_composeAmsType(Type *portType, Type *declarationType) -> Ty
         return a;
     }
     if (dynamic_cast<Array *>(portType) != nullptr) {
-        Array *t = static_cast<Array *>(portType);
-        Array *a = new Array();
+        auto *t = dynamic_cast<Array *>(portType);
+        auto *a = new Array();
         a->setType(_composeAmsType(t->getType(), declarationType));
         a->setSigned(t->isSigned());
         a->setSpan(t->setSpan(nullptr));
 
         delete portType;
         return a;
-    } else if (dynamic_cast<TypeReference *>(portType) != nullptr) {
+    }
+    if (dynamic_cast<TypeReference *>(portType) != nullptr) {
         auto portRef = static_cast<TypeReference *>(portType);
         auto declRef = static_cast<TypeReference *>(declarationType);
         if (portRef->getName() == declRef->getName()) {

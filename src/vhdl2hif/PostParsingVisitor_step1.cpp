@@ -603,7 +603,7 @@ auto PostParsingVisitor_step1::visitSystem(System &o) -> int
         if (libView == view || libView == nullptr) {
             // Could be a view declared in a package not used by its implementation.
             libView = nullptr;
-            for (auto du : dus) {
+            for (auto *du : dus) {
                 if (du == *i) {
                     continue;
                 }
@@ -724,7 +724,7 @@ auto PostParsingVisitor_step1::visitLibraryDef(LibraryDef &o) -> int
     hif::semantics::ReferencesSet list;
     hif::semantics::getReferences(&o, list, _sem, &o);
 
-    for (auto obj : list) {
+    for (auto *obj : list) {
         if (!obj->isInBList()) {
             continue;
         }
@@ -1095,14 +1095,12 @@ auto PostParsingVisitor_step1::fixCollectRanges() -> bool
             range->setDirection(dir_upto);
             ret = true;
             continue;
-        } else {
-            // mixed case
-            ret = true;
-            // collecting for further fixes
-            for (TypeReferenceSet::iterator j = uptoTyperefs.begin(); j != uptoTyperefs.end(); ++j) {
-                TypeReference *tr = *j;
-                trMap[tr].insert(range);
-            }
+        } // mixed case
+        ret = true;
+        // collecting for further fixes
+        for (TypeReferenceSet::iterator j = uptoTyperefs.begin(); j != uptoTyperefs.end(); ++j) {
+            TypeReference *tr = *j;
+            trMap[tr].insert(range);
         }
     }
 
@@ -1122,11 +1120,11 @@ auto PostParsingVisitor_step1::fixCollectRanges() -> bool
         TypeDef *originalDecl = _rangeMap[*(rangeSet.begin())].decl;
 
         // Trick: to revert ranges, revert on original, copy, and then revert back original.
-        for (auto range : rangeSet) {
+        for (auto *range : rangeSet) {
             range->setDirection(dir_upto);
         }
         TypeDef *newTypedef = hif::copy(originalDecl);
-        for (auto range : rangeSet) {
+        for (auto *range : rangeSet) {
             range->setDirection(dir_downto);
         }
         newTypedef->setOpaque(false); // to assure type checking compatibility
@@ -1136,7 +1134,7 @@ auto PostParsingVisitor_step1::fixCollectRanges() -> bool
         std::string newName = NameTable::getInstance()->getFreshName(originalDecl->getName(), "_upto");
         newTypedef->setName(newName);
 
-        for (auto tr : typerefs) {
+        for (auto *tr : typerefs) {
             tr->setName(newName);
         }
     }
