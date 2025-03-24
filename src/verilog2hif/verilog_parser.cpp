@@ -1261,7 +1261,7 @@ auto VerilogParser::parse_EventTrigger(Value *hierarchical_identifier, hif::BLis
 
         Value *valuePrev = hierarchical_identifier;
 
-        for (BList<Value>::size_t i = 0; i < bracket_expression_list->size(); ++i) {
+        for (std::size_t i = 0; i < bracket_expression_list->size(); ++i) {
             if (range_o != nullptr) {
                 // slice
                 auto *s = new Slice();

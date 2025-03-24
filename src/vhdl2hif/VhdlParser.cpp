@@ -3761,26 +3761,26 @@ auto VhdlParser::resolveType(
 
         return int_o;
     }
-    if (type_ref.compare("positive") == 0) {
+    if (type_ref == "positive") {
         Int *int_o = new Int();
         int_o->setSigned(false);
 
-        if (opt_arg && !opt_arg->empty()) {
+        if ((opt_arg != nullptr) && !opt_arg->empty()) {
             for (BList<Value>::iterator i = opt_arg->begin(); i != opt_arg->end(); ++i) {
-                if (dynamic_cast<Range *>(*i)) {
-                    int_o->setSpan(hif::copy(static_cast<Range *>(*i)));
+                if (dynamic_cast<Range *>(*i) != nullptr) {
+                    int_o->setSpan(hif::copy(dynamic_cast<Range *>(*i)));
                 }
             }
-        } else if (ro) {
+        } else if (ro != nullptr) {
             // for backward compatibility
             int_o->setSpan(hif::copy(ro));
         } else if (ro == nullptr) {
-            Range *nr = new Range(1, 2147483647LL);
+            auto *nr = new Range(1, 2147483647LL);
             int_o->setSpan(nr);
         }
 
         return int_o;
-    } else if (type_ref.compare("boolean") == 0) {
+    } if (type_ref.compare("boolean") == 0) {
         Bool *b = new Bool();
         return b;
     } else if (type_ref.compare("time") == 0) {

@@ -597,9 +597,9 @@ auto PostParsingVisitor_step2::visitAggregate(Aggregate &o) -> int
     messageAssert(span != nullptr, "Span not found", aggType, _sem);
     const RangeDirection dir = span->getDirection();
 
-    const BList<Object>::size_t size = o.alts.size();
-    BList<Object>::size_t pos        = 0;
-    Value *min                       = hif::rangeGetMinBound(span);
+    auto size       = o.alts.size();
+    std::size_t pos = 0;
+    Value *min      = hif::rangeGetMinBound(span);
     for (BList<AggregateAlt>::iterator it = o.alts.begin(); it != o.alts.end(); ++it) {
         AggregateAlt *alt = *it;
         alt->indices.clear();

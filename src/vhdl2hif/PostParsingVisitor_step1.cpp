@@ -1098,8 +1098,7 @@ auto PostParsingVisitor_step1::fixCollectRanges() -> bool
         } // mixed case
         ret = true;
         // collecting for further fixes
-        for (TypeReferenceSet::iterator j = uptoTyperefs.begin(); j != uptoTyperefs.end(); ++j) {
-            TypeReference *tr = *j;
+        for (auto tr : uptoTyperefs) {
             trMap[tr].insert(range);
         }
     }
@@ -1223,7 +1222,7 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         messageError("Not found scope with template parameters of a typeref", tr, _sem);
     }
 
-    const BList<Range>::size_t dim = 2 * tr->ranges.size();
+    auto dim = 2 * tr->ranges.size();
 
     // Sanity check: if no new implicit templates can be added,
     // then the number of specified ranges must match the number of
@@ -1407,8 +1406,8 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
             Enum *e = dynamic_cast<Enum *>(hif::semantics::getDeclaration(tref, _sem));
             if (e != nullptr) {
                 // WTF?
-                unsigned int size = e->values.size();
-                auto *r           = new Range(size, 0);
+                auto size = e->values.size();
+                auto *r   = new Range(size, 0);
                 o.replace(r);
                 delete &o;
                 return;

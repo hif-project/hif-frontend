@@ -550,13 +550,13 @@ auto VerilogParser::_composeAmsType(Type *portType, Type *declarationType) -> Ty
         return a;
     }
     if (dynamic_cast<TypeReference *>(portType) != nullptr) {
-        auto portRef = static_cast<TypeReference *>(portType);
-        auto declRef = static_cast<TypeReference *>(declarationType);
+        auto *portRef = dynamic_cast<TypeReference *>(portType);
+        auto *declRef = dynamic_cast<TypeReference *>(declarationType);
         if (portRef->getName() == declRef->getName()) {
             messageAssert(portRef->getName() != std::string("ground"), "Unresolved ground type", nullptr, nullptr);
             delete portType;
             return declarationType;
-        } else if (portRef->getName() == std::string("ground")) {
+        } if (portRef->getName() == std::string("ground")) {
             portRef->templateParameterAssigns.push_back(_factory.templateTypeArgument("T", declRef));
             return portRef;
         } else if (declRef->getName() == std::string("ground")) {
