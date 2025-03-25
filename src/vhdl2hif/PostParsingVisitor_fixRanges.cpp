@@ -35,7 +35,7 @@ public:
 private:
     auto _fixTypeAttributeCall(FunctionCall *call, Type *t) -> Value *;
 
-    const bool _useInt32;
+    bool _useInt32;
     hif::semantics::VHDLSemantics *_sem;
     hif::application_utils::WarningStringSet _librarySet;
     hif::Trash _trash;
@@ -106,7 +106,7 @@ auto PostParsingVisitor_fixRanges::visitFunctionCall(FunctionCall &o) -> int
 auto PostParsingVisitor_fixRanges::visitInt(Int &o) -> int
 {
     GuideVisitor::visitInt(o);
-    const bool isSigned = o.isSigned();
+    bool isSigned = o.isSigned();
     o.setSigned(true);
     Range *range = o.getSpan();
     Range *span  = nullptr;
@@ -215,9 +215,9 @@ auto PostParsingVisitor_fixRanges::visitLibrary(Library &o) -> int
     messageAssert(inst != nullptr, "Unexpected library instance", &o, _sem);
     auto *lib = dynamic_cast<Library *>(inst->getInstance());
 
-    const bool instIEEE = inst->getName() == "ieee" || inst->getName() == "std";
+    bool instIEEE = inst->getName() == "ieee" || inst->getName() == "std";
 
-    const bool libIEEE = lib != nullptr && (lib->getName() == "ieee" || lib->getName() == "std");
+    bool libIEEE = lib != nullptr && (lib->getName() == "ieee" || lib->getName() == "std");
 
     if (!instIEEE && !libIEEE) {
         if (lib == nullptr) {
@@ -315,7 +315,7 @@ auto _hasSameSignagure(SubProgram *s1, SubProgram *s2) -> bool
 {
     StateTable *s1st = s1->setStateTable(nullptr);
     StateTable *s2st = s2->setStateTable(nullptr);
-    const bool ret   = hif::equals(s1, s2);
+    bool ret   = hif::equals(s1, s2);
     s1->setStateTable(s1st);
     s2->setStateTable(s2st);
     return ret;

@@ -1738,7 +1738,7 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
     Type *paType      = hif::semantics::getSemanticType(first, _sem);
     messageAssert(paType != nullptr, "Cannot type description", first, _sem);
 
-    const bool hasTemplates = hif::typeDependsOnTemplates(paType, _sem);
+    bool hasTemplates = hif::typeDependsOnTemplates(paType, _sem);
     Value *paTypeMin        = nullptr;
     if (hasTemplates) {
         Range *paTypeRange = hif::typeGetSpan(paType, _sem);
@@ -1788,7 +1788,7 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
     delete first->setValue(concat);
 }
 
-auto PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &trash, const bool hasTemplates) -> Value *
+auto PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &trash, bool hasTemplates) -> Value *
 {
     if (!hasTemplates) {
         return index;
@@ -1808,7 +1808,7 @@ auto PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &tras
     return ret;
 }
 
-auto PostParsingVisitor_step2::_getPartial(Range *index, Value *min, Trash &trash, const bool hasTemplates) -> Range *
+auto PostParsingVisitor_step2::_getPartial(Range *index, Value *min, Trash &trash, bool hasTemplates) -> Range *
 {
     if (!hasTemplates) {
         return index;

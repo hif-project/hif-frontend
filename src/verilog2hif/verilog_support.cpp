@@ -130,7 +130,7 @@ auto convertToBinary(int number, int numBits) -> string
     return binaryNumber;
 }
 
-void clean_bitvalues(SwitchAlt *c, const bool x)
+void clean_bitvalues(SwitchAlt *c, bool x)
 {
     for (BList<Value>::iterator i = c->conditions.begin(); i != c->conditions.end(); ++i) {
         // Bit:

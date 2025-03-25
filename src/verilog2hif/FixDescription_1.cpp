@@ -230,58 +230,58 @@ auto FixDescription_1::visitConst(hif::Const &o) -> int
 auto FixDescription_1::visitContents(hif::Contents &o) -> int
 {
     // fix AMS double declarations
+    // Iterate over all declarations.
     for (auto itr1 = o.declarations.begin(); itr1 != o.declarations.end(); ++itr1) {
-
-        auto *sig1 = dynamic_cast<hif::Signal *>(*itr1);
-
-        if (sig1 == nullptr) {
+        // Cast the declaration to a signal.
+        auto signal1 = dynamic_cast<hif::Signal *>(*itr1);
+        if (signal1 == nullptr) {
             continue;
         }
-
-        for (auto itr2 = ++itr1; itr2 != o.declarations.end();) {
-
-            auto *sig2 = dynamic_cast<hif::Signal *>(*itr2);
-
-            if (sig2 == nullptr) {
-                ++itr2;
+        // Iterate over the remaining declarations.
+        for (auto itr2 = itr1.next(); itr2 != o.declarations.end(); ++itr2) {
+            // Cast the declaration to a signal.
+            auto signal2 = dynamic_cast<hif::Signal *>(*itr2);
+            if (signal2 == nullptr) {
                 continue;
             }
-
-            if (sig1->getName() != sig2->getName()) {
-                ++itr2;
+            if (signal1->getName() != signal2->getName()) {
                 continue;
             }
-
-            auto *bit1 = dynamic_cast<hif::Bit *>(sig1->getType());
-            auto *bit2 = dynamic_cast<hif::Bit *>(sig2->getType());
-
-            auto *tr1 = dynamic_cast<hif::TypeReference *>(sig1->getType());
-            auto *tr2 = dynamic_cast<hif::TypeReference *>(sig2->getType());
-
-            const bool logic1 = tr1 != nullptr && tr1->getName() == "logic";
-            const bool logic2 = tr2 != nullptr && tr2->getName() == "logic";
-
-            const bool ground1 = tr1 != nullptr && tr1->getName() == "ground";
-            const bool ground2 = tr2 != nullptr && tr2->getName() == "ground";
-
+            // Cast both signals to bits.
+            auto *bit1   = dynamic_cast<hif::Bit *>(signal1->getType());
+            auto *bit2   = dynamic_cast<hif::Bit *>(signal2->getType());
+            // Get the type references.
+            auto *tr1    = dynamic_cast<hif::TypeReference *>(signal1->getType());
+            auto *tr2    = dynamic_cast<hif::TypeReference *>(signal2->getType());
+            // Check if the signals are of type logic.
+            bool logic1  = tr1 != nullptr && tr1->getName() == "logic";
+            bool logic2  = tr2 != nullptr && tr2->getName() == "logic";
+            // Check if the signals are of type ground.
+            bool ground1 = tr1 != nullptr && tr1->getName() == "ground";
+            bool ground2 = tr2 != nullptr && tr2->getName() == "ground";
+            // If both signals are of type logic or ground, handle them later.
             if (ground1 || ground2) {
-                // managed later
-                ++itr2;
                 continue;
             }
-
-            const bool type1 = bit1 != nullptr || logic1;
-            const bool type2 = bit2 != nullptr || logic2;
-            messageAssert(type1 && type2, "Case not supported yet", sig2, _sem);
-
+            // Check if the signals are of type bit.
+            bool type1 = bit1 != nullptr || logic1;
+            bool type2 = bit2 != nullptr || logic2;
+            // Check if the signals are of type bit.
+            messageAssert(type1 && type2, "Case not supported yet", signal2, _sem);
+            // If the first signal is of type bit, set the type of the second signal to bit.
             if (bit1 != nullptr) {
-                delete sig1->setType(sig2->setType(nullptr));
+                delete signal1->setType(signal2->setType(nullptr));
             }
-
-            messageAssert(sig1->getValue() == nullptr || sig2->getValue() == nullptr, "Unexpected case", sig1, _sem);
-            if (sig1->getValue() == nullptr) {
-                sig1->setValue(sig2->setValue(nullptr));
+            // Get the value of both signals.
+            auto value1 = signal1->getValue();
+            auto value2 = signal2->getValue();
+            // Check if the value of both signals are valid.
+            messageAssert(value1 == nullptr || value2 == nullptr, "Unexpected case", signal1, _sem);
+            // If the value of the first signal is null, set the value of the second signal to null.
+            if (value1 == nullptr) {
+                signal1->setValue(signal2->setValue(nullptr));
             }
+            // Remove the second signal.
             itr2 = itr2.erase();
         }
     }
@@ -584,8 +584,8 @@ auto FixDescription_1::visitInstance(hif::Instance &o) -> int
 
 auto FixDescription_1::visitLibraryDef(hif::LibraryDef &o) -> int
 {
-    const bool restore = _insideStandard;
-    _insideStandard    = o.isStandard();
+    bool restore    = _insideStandard;
+    _insideStandard = o.isStandard();
     GuideVisitor::visitLibraryDef(o);
     _insideStandard = restore;
 
@@ -642,8 +642,8 @@ auto FixDescription_1::visitView(hif::View &o) -> int
     }
     _declSet.insert(&o);
 
-    const bool restore = _insideStandard;
-    _insideStandard    = o.isStandard();
+    bool restore    = _insideStandard;
+    _insideStandard = o.isStandard();
     GuideVisitor::visitView(o);
     _insideStandard = restore;
 
@@ -709,10 +709,10 @@ auto FixDescription_1::visitWhile(hif::While &o) -> int
     }
 
     // In this case, the label is already set as statetable name.
-    const bool isTopLevel = (dynamic_cast<hif::State *>(o.getParent()) != nullptr) &&
-                            dynamic_cast<hif::State *>(o.getParent())->actions.size() == 1UL;
+    bool isTopLevel = (dynamic_cast<hif::State *>(o.getParent()) != nullptr) &&
+                      dynamic_cast<hif::State *>(o.getParent())->actions.size() == 1UL;
 
-    const bool isUseless = o.getName() == hif::NameTable::getInstance()->none() || !isReferenced || isTopLevel;
+    bool isUseless = o.getName() == hif::NameTable::getInstance()->none() || !isReferenced || isTopLevel;
 
     if (!isUseless) {
         return 0;
@@ -967,15 +967,17 @@ auto FixDescription_1::_fixGenVarVariable(hif::Variable *o) -> bool
     if (!o->checkProperty(PROPERTY_GENVAR)) {
         return false;
     }
+
     if (_genVars.find(o) != _genVars.end()) {
         return true;
     }
-
-    auto *bc = hif::getNearestParent<hif::BaseContents>(o);
-    messageAssert(bc != nullptr, "Base contents not found.", o, _sem);
-    typedef hif::semantics::ReferencesSet Refs;
-    Refs refs;
-    hif::semantics::getReferences(o, refs, _sem, bc);
+    // Get the nearest content.
+    auto base_contents = hif::getNearestParent<hif::BaseContents>(o);
+    // Check the content we found.
+    messageAssert(base_contents, "Base contents not found.", o, _sem);
+    // Get all the references to the
+    hif::semantics::ReferencesSet refs;
+    hif::semantics::getReferences(o, refs, _sem, base_contents);
 
     // If the GenVar is not used, it's not a problem.
     if (refs.empty()) {
@@ -1112,8 +1114,8 @@ auto FixDescription_1::_getTopParent(hif::Action *a1, hif::Action *a2) -> hif::A
 
 void FixDescription_1::_fixMissingDeclarationType(hif::DataDeclaration *decl)
 {
-    const bool isSigned = dynamic_cast<hif::BoolValue *>(decl->getProperty("signed")) != nullptr &&
-                          dynamic_cast<hif::BoolValue *>(decl->getProperty("signed"))->getValue();
+    bool isSigned = dynamic_cast<hif::BoolValue *>(decl->getProperty("signed")) != nullptr &&
+                    dynamic_cast<hif::BoolValue *>(decl->getProperty("signed"))->getValue();
     decl->removeProperty("signed");
 
     if (decl->getType() != nullptr) {
@@ -1190,7 +1192,7 @@ void FixDescription_1::_fixMissingPortDir(hif::Port *o, const hif::semantics::Re
     }
 }
 
-auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, const bool aggressive) -> bool
+auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, bool aggressive) -> bool
 {
     if (o->getName() != "iterated_concat") {
         return false;

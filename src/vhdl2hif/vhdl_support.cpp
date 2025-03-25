@@ -264,7 +264,7 @@ auto str_replace(char const *old_value, char const *new_value, std::string s) ->
     return s;
 }
 
-auto resolveLibraryType(Value *prefix, const bool skipNotFound) -> Library *
+auto resolveLibraryType(Value *prefix, bool skipNotFound) -> Library *
 {
     if (prefix == nullptr) {
         return nullptr;

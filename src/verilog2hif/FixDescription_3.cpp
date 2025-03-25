@@ -124,7 +124,7 @@ void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
         if (p->getDirection() != dir_out && p->getDirection() != dir_inout) {
             continue;
         }
-        const bool inTopView = checkSubNodeOfTop(p, topViews);
+        bool inTopView = checkSubNodeOfTop(p, topViews);
         RefSet &portRefs     = i->second;
 
         RefSet continuousTargets;
@@ -138,7 +138,7 @@ void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
                 continue;
             }
 
-            const bool isRead = !hif::manipulation::isInLeftHandSide(symb);
+            bool isRead = !hif::manipulation::isInLeftHandSide(symb);
             if (isRead) {
                 readRefs.insert(symb);
                 continue;
@@ -148,7 +148,7 @@ void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
             messageAssert(ass != nullptr, "Cannot find parent assign", symb, sem);
 
             auto *gact                  = hif::getNearestParent<GlobalAction>(symb);
-            const bool isBlockingAssign = gact != nullptr || !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
+            bool isBlockingAssign = gact != nullptr || !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
 
             if (isBlockingAssign) {
                 continuousTargets.insert(symb);
@@ -376,7 +376,7 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
 
     // Get candidate assigns.
     Query query;
-    query.collectObjectMethod = &assignQuery;
+    query.check_object_method = &assignQuery;
     query.skipStandardScopes  = true;
     Query::Results assigns;
     hif::search(assigns, system, query);
@@ -575,7 +575,7 @@ void calculateRequiredDeclType(
     const InfoStruct &infos,
     DataDeclaration *decl)
 {
-    //        const bool isOutputPort = dynamic_cast<Port*>(decl) != nullptr
+    //        bool isOutputPort = dynamic_cast<Port*>(decl) != nullptr
     //                && static_cast<Port*>(decl)->getDirection() == dir_out;
 
     isConnectionSignal = dynamic_cast<Port *>(decl) != nullptr || !infos.portUsing.empty() || !infos.bindUsing.empty();
@@ -586,7 +586,7 @@ void calculateRequiredDeclType(
     isVariable = !infos.lhsContinuousUsing.empty() || !infos.lhsBlockingUsing.empty() || infos.wasLhsContinuous;
 }
 
-void fillInfoMap(RefMap &refMap, InfoMap &infoMap, const bool removeProperty)
+void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
 {
     for (auto &i : refMap) {
         auto *decl = dynamic_cast<DataDeclaration *>(i.first);
@@ -615,9 +615,9 @@ void fillInfoMap(RefMap &refMap, InfoMap &infoMap, const bool removeProperty)
                 (hif::objectIsInSensitivityList(symb, opts) || hif::isSubNode(symb, wait->getCondition()))) {
                 infoMap[decl].waitUsing.insert(symb);
             } else if (ass != nullptr) {
-                const bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
-                const bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
-                const bool hasBlocking = !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
+                bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
+                bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
+                bool hasBlocking = !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
                 if (!isTarget && isInGlobact) {
                     infoMap[decl].rhsContinuousUsing.insert(symb);
                 } else if (isTarget && isInGlobact) {
@@ -764,7 +764,7 @@ void generateConeFunctions(
         }
 
         InfoStruct &infos     = infoMap[decl];
-        const bool onlyInCont = (infos.isOnlyInContinuousAssignments());
+        bool onlyInCont = (infos.isOnlyInContinuousAssignments());
         if (onlyInCont) {
             continue;
         }
@@ -994,7 +994,7 @@ void addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, C
             } else {
                 // Ensuring that the pcall happens always before all the cone var refs.
                 hif::semantics::GetReferencesOptions opt;
-                opt.onlyFirst = true;
+                opt.only_first = true;
                 hif::semantics::ReferencesSet res;
                 hif::semantics::getReferences(decl, res, sem, parentCone, opt);
                 messageAssert(res.size() == 1U, "Expected just one ref", decl, sem);
@@ -1073,7 +1073,7 @@ void fixSensitivities(
                 hif::manipulation::AddUniqueObjectOptions addOpt;
                 addOpt.equalsOptions.checkOnlyNames = true;
                 addOpt.deleteIfNotAdded             = true;
-                const bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
+                bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
                 if (inserted) {
                     infoMap[parentNodeDecl].sensitivityUsing.insert(sensEntry);
                     refMap[parentNodeDecl].insert(sensEntry);
@@ -1104,7 +1104,7 @@ void fixSensitivities(
                 hif::manipulation::AddUniqueObjectOptions addOpt;
                 addOpt.equalsOptions.checkOnlyNames = true;
                 addOpt.deleteIfNotAdded             = true;
-                const bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
+                bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
                 if (inserted) {
                     infoMap[parentNodeDecl].waitUsing.insert(sensEntry);
                     refMap[parentNodeDecl].insert(sensEntry);
@@ -1275,7 +1275,7 @@ void refineToVariables(
                 messageAssert(ass != nullptr, "Parent assign not found", ref, sem);
 
                 Assign *sigAss      = hif::copy(ass);
-                const bool hasDelay = (ass->getDelay() != nullptr);
+                bool hasDelay = (ass->getDelay() != nullptr);
 
                 hif::objectSetName(ref, varName);
                 hif::semantics::setDeclaration(ref, var);
@@ -1283,7 +1283,7 @@ void refineToVariables(
                     delete sigAss->setRightHandSide(hif::copy(ass->getLeftHandSide()));
                 } else {
                     hif::HifTypedQuery<FunctionCall> q;
-                    q.collectObjectMethod = &skipStandardFunctionCall;
+                    q.check_object_method = &skipStandardFunctionCall;
                     std::list<Object *> list;
                     hif::search(list, ass->getRightHandSide(), q);
 
@@ -1576,7 +1576,7 @@ void performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSemant
                 continue;
             }
             // Must be written as blocking
-            const bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
+            bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
             if (!isTarget) {
                 continue;
             }
@@ -1615,7 +1615,7 @@ void performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSemant
                 continue;
             }
             // Must be read
-            const bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
+            bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
             if (isTarget) {
                 continue;
             }
@@ -1650,7 +1650,7 @@ void partialFlattening(
     Views &topViews,
     RefMap &refMap,
     hif::semantics::ILanguageSemantics *sem,
-    const bool preserveStructure)
+    bool preserveStructure)
 {
     // Flattening performed only when preserveStructure is false.
     if (preserveStructure) {
@@ -1675,7 +1675,7 @@ void partialFlattening(
     //        only once.
 
     hif::semantics::GetReferencesOptions opt;
-    opt.includeUnreferenced = true;
+    opt.include_unreferenced = true;
 
     for (;;) {
         // Filling info map.
@@ -1686,8 +1686,8 @@ void partialFlattening(
         collectOnAssigns(infoMap, sem, views, viewRefs);
 
         // Flattening design
-        const bool isOnlyTop       = checkTopViews(views, topViews);
-        const bool needsFlattening = ((!views.empty() && !isOnlyTop) || !viewRefs.empty());
+        bool isOnlyTop       = checkTopViews(views, topViews);
+        bool needsFlattening = ((!views.empty() && !isOnlyTop) || !viewRefs.empty());
         if (!needsFlattening) {
             break;
         }
@@ -1704,7 +1704,7 @@ void partialFlattening(
     }
 }
 
-void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics *sem, const bool preserveStructure)
+void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics *sem, bool preserveStructure)
 {
     // ///////////////////////////////////////////////////////////////////
     // Ensuring no concats as targets.
@@ -1725,7 +1725,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // //////////////////////////////////////////////////////////////////
     RefMap refMap;
     hif::semantics::GetReferencesOptions opt;
-    opt.includeUnreferenced = true;
+    opt.include_unreferenced = true;
     hif::semantics::getAllReferences(refMap, sem, o, opt);
     hif::semantics::typeTree(o, sem);
 

@@ -35,9 +35,9 @@ vhdl2hifParseLine::vhdl2hifParseLine(int argc, char *argv[])
     addWriteParsing();
 
 #ifdef NDEBUG
-    const bool useSynthesisIntAvaiable = false;
+    bool useSynthesisIntAvaiable = false;
 #else
-    const bool useSynthesisIntAvaiable = true;
+    bool useSynthesisIntAvaiable = true;
 #endif
 
     addOption(

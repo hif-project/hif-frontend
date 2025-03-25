@@ -227,7 +227,7 @@ auto main(int argc, char *argv[]) -> int
 void postParsingRefinements(
     System *systOb,
     hif::semantics::VerilogSemantics *sem,
-    const bool needVAMSStandard,
+    bool needVAMSStandard,
     Verilog2hifParseLine &cLine)
 {
     // Add Verilog standard package

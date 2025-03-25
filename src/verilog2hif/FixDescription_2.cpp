@@ -162,7 +162,7 @@ auto detectClockSignal(StateTable *process) -> std::string
 
 using InitialProcesses = std::list<StateTable *>;
 
-auto collectObjectMethod(Object *o, const HifQueryBase * /*unused*/) -> bool
+auto check_object_method(Object *o, const HifQueryBase * /*unused*/) -> bool
 {
     if (dynamic_cast<Wait *>(o) != nullptr) {
         return true;
@@ -895,7 +895,7 @@ void FixDescription_2::_manageWaitActions(Wait *o)
 {
     ProcessFlavour flavour;
     const auto found = hif::objectGetProcessFlavour(o, flavour);
-    const bool isRtl = !found || flavour != pf_analog;
+    bool isRtl = !found || flavour != pf_analog;
     if (!isRtl) {
         return;
     }
@@ -963,7 +963,7 @@ void FixDescription_2::_scaleTimeValue(Value *v)
 auto FixDescription_2::_checkWrongStatement(Object *root) -> bool
 {
     hif::HifTypedQuery<Wait> q1;
-    q1.collectObjectMethod          = &collectObjectMethod;
+    q1.check_object_method          = &check_object_method;
     q1.sem                          = _sem;
     q1.checkInsideCallsDeclarations = true;
     q1.onlyFirstMatch               = true;

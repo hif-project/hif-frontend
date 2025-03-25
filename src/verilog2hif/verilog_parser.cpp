@@ -769,7 +769,7 @@ auto VerilogParser::parse_OutputDeclaration(
     Range *range,
     char *identifier,
     Value *initVal,
-    const bool isReg) -> Port *
+    bool isReg) -> Port *
 {
     Port *port_o = new Port();
     setCodeInfo(port_o);
@@ -858,7 +858,7 @@ auto VerilogParser::parse_OutputDeclaration(
     bool k_signed,
     Range *range,
     BList<Port> *list_of_variable_port_identifiers,
-    const bool isReg) -> BList<Port> *
+    bool isReg) -> BList<Port> *
 {
     // for each identifier
     for (BList<Port>::iterator i = list_of_variable_port_identifiers->begin();
@@ -1115,7 +1115,7 @@ auto VerilogParser::parse_Range(Value *lbound, Value *rbound) -> Range *
     return ro;
 }
 
-auto VerilogParser::parse_ExpressionUnaryOperator(Operator unary_op, Value *primary, const bool negate) -> Value *
+auto VerilogParser::parse_ExpressionUnaryOperator(Operator unary_op, Value *primary, bool negate) -> Value *
 {
     if (primary == nullptr) {
         return nullptr;
@@ -1139,7 +1139,7 @@ auto VerilogParser::parse_ExpressionBinaryOperator(
     Value *expression1,
     Operator binary_op,
     Value *expression2,
-    const bool negate) -> Value *
+    bool negate) -> Value *
 {
     if (expression1 == nullptr || expression2 == nullptr) {
         return nullptr;
@@ -3457,7 +3457,7 @@ auto VerilogParser::parse_ModuleOrGenerateItem(std::list<module_instance_and_net
     return ret;
 }
 
-auto VerilogParser::parse_NatureBinding(char *identifier, const bool isPotential) -> Variable *
+auto VerilogParser::parse_NatureBinding(char *identifier, bool isPotential) -> Variable *
 {
     auto *vr = new ViewReference();
     vr->setName("ams_nature");
@@ -3499,7 +3499,7 @@ void VerilogParser::parse_DisciplineDeclaration(char *identifier, hif::BList<Var
 }
 
 auto VerilogParser::parse_AnalogFunctionDeclaration(
-    const bool isInteger,
+    bool isInteger,
     char *identifier,
     analog_function_item_declaration_t *analog_function_item_declaration_list,
     analog_statement_t *analog_function_statement) -> Function *

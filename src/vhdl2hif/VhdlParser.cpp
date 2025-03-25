@@ -2083,8 +2083,8 @@ auto VhdlParser::parse_IterationScheme(BList<Value> *parameter_specification) ->
     setCodeInfo(indName);
     initD.push_back(_factory.variable(_factory.integer(), indName->getName(), nullptr));
 
-    const bool isTyped = forRange->getRightBound() == nullptr;
-    const bool isReverse =
+    bool isTyped = forRange->getRightBound() == nullptr;
+    bool isReverse =
         ((dynamic_cast<FunctionCall *>(forRange->getLeftBound()) != nullptr) &&
          dynamic_cast<FunctionCall *>(forRange->getLeftBound())->getName() == "reverse_range");
 
@@ -2801,8 +2801,8 @@ auto VhdlParser::parse_SubtypeIndication(Value *name, constraint_t *constraint_o
 
         name = nullptr; // avoid delete
     } else if (cast_o != nullptr) {
-        const bool hasOp   = (cast_o->getValue() != nullptr);
-        const bool hasType = (cast_o->getType() != nullptr);
+        bool hasOp   = (cast_o->getValue() != nullptr);
+        bool hasType = (cast_o->getType() != nullptr);
         messageAssert((hasOp || hasType), "Malformed cast", cast_o, nullptr);
 
         Range *range_o = nullptr;
@@ -3294,8 +3294,8 @@ auto VhdlParser::parse_ParameterSpecification(Value *id, Range *discrete_range) 
     setCodeInfo(var);
     initD.push_back(var);
 
-    const bool isTyped = discrete_range->getRightBound() == nullptr;
-    const bool isReverse =
+    bool isTyped = discrete_range->getRightBound() == nullptr;
+    bool isReverse =
         ((dynamic_cast<FunctionCall *>(discrete_range->getLeftBound()) != nullptr) &&
          dynamic_cast<FunctionCall *>(discrete_range->getLeftBound())->getName() == "reverse_range");
 

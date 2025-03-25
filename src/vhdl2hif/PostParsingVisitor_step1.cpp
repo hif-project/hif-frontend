@@ -285,7 +285,7 @@ auto _replaceRelationalOperators(Expression &o, hif::semantics::ILanguageSemanti
         // If arith/signed/unsigned: keep eq/neq
         Scope *s          = hif::getNearestScope(&o, false, true, false);
         BList<Library> *l = hif::objectGetLibraryList(s);
-        const bool isInLogicLib =
+        bool isInLogicLib =
             (l->findByName("ieee_std_logic_arith") != nullptr || l->findByName("ieee_std_logic_signed") != nullptr ||
              l->findByName("ieee_std_logic_unsigned") != nullptr);
         if (isInLogicLib) {
@@ -445,7 +445,7 @@ auto PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o) -> int
 
     // 1st run
     if (!_haveToFixAggregate) {
-        const bool restore = _haveMeetAggregate;
+        bool restore = _haveMeetAggregate;
         _haveMeetAggregate = true;
         GuideVisitor::visitAggregate(o);
         _haveMeetAggregate = restore;
@@ -573,7 +573,7 @@ auto PostParsingVisitor_step1::visitSystem(System &o) -> int
         vr->setDesignUnit(currentDu->getName());
         auto *fake = new Variable();
         fake->setType(vr);
-        const bool isComponent = view->getContents() == nullptr;
+        bool isComponent = view->getContents() == nullptr;
         if (isComponent) {
             auto *contents_o = new Contents();
             contents_o->setName(view->getName());
@@ -669,7 +669,7 @@ auto PostParsingVisitor_step1::visitEnumValue(hif::EnumValue &o) -> int
     tr->setName(td->getName());
     o.setType(tr);
 
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     GuideVisitor::visitEnumValue(o);
     secondVisit = restore;
 
@@ -745,7 +745,7 @@ auto PostParsingVisitor_step1::visitFunctionCall(FunctionCall &o) -> int
 {
     GuideVisitor::visitFunctionCall(o);
     Value *ret         = _fixFunctionCall(&o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     if (&o == ret) {
         GuideVisitor::visitFunctionCall(o);
@@ -965,7 +965,7 @@ auto PostParsingVisitor_step1::visitStringValue(StringValue &o) -> int
 
 auto PostParsingVisitor_step1::visitAlias(Alias &o) -> int
 {
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitAlias(o);
     secondVisit = restore;
@@ -975,7 +975,7 @@ auto PostParsingVisitor_step1::visitAlias(Alias &o) -> int
 auto PostParsingVisitor_step1::visitConst(Const &o) -> int
 {
     GuideVisitor::visitConst(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitConst(o);
     secondVisit = restore;
@@ -985,7 +985,7 @@ auto PostParsingVisitor_step1::visitConst(Const &o) -> int
 auto PostParsingVisitor_step1::visitField(Field &o) -> int
 {
     GuideVisitor::visitField(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitField(o);
     secondVisit = restore;
@@ -995,7 +995,7 @@ auto PostParsingVisitor_step1::visitField(Field &o) -> int
 auto PostParsingVisitor_step1::visitParameter(Parameter &o) -> int
 {
     GuideVisitor::visitParameter(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitParameter(o);
     secondVisit = restore;
@@ -1005,7 +1005,7 @@ auto PostParsingVisitor_step1::visitParameter(Parameter &o) -> int
 auto PostParsingVisitor_step1::visitPort(Port &o) -> int
 {
     GuideVisitor::visitPort(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitPort(o);
     secondVisit = restore;
@@ -1015,7 +1015,7 @@ auto PostParsingVisitor_step1::visitPort(Port &o) -> int
 auto PostParsingVisitor_step1::visitSignal(Signal &o) -> int
 {
     GuideVisitor::visitSignal(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitSignal(o);
     secondVisit = restore;
@@ -1025,7 +1025,7 @@ auto PostParsingVisitor_step1::visitSignal(Signal &o) -> int
 auto PostParsingVisitor_step1::visitVariable(Variable &o) -> int
 {
     GuideVisitor::visitVariable(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitVariable(o);
     secondVisit = restore;
@@ -1035,7 +1035,7 @@ auto PostParsingVisitor_step1::visitVariable(Variable &o) -> int
 auto PostParsingVisitor_step1::visitValueTP(ValueTP &o) -> int
 {
     GuideVisitor::visitValueTP(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitValueTP(o);
     secondVisit = restore;
@@ -1045,7 +1045,7 @@ auto PostParsingVisitor_step1::visitValueTP(ValueTP &o) -> int
 auto PostParsingVisitor_step1::visitAssign(Assign &o) -> int
 {
     GuideVisitor::visitAssign(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitAssign(o);
     secondVisit = restore;
@@ -1055,7 +1055,7 @@ auto PostParsingVisitor_step1::visitAssign(Assign &o) -> int
 auto PostParsingVisitor_step1::visitPortAssign(PortAssign &o) -> int
 {
     GuideVisitor::visitPortAssign(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitPortAssign(o);
     secondVisit = restore;
@@ -1144,7 +1144,7 @@ auto PostParsingVisitor_step1::fixCollectRanges() -> bool
 void PostParsingVisitor_step1::_fixConstValue(ConstValue &o)
 {
     // Avoid double visit, just for optimization.
-    const bool hasType = (o.getType() != nullptr);
+    bool hasType = (o.getType() != nullptr);
     hif::manipulation::assureSyntacticType(&o, _sem);
     if (o.getType() == nullptr || hasType) {
         return;
@@ -1189,7 +1189,7 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
     } else if (ddecl != nullptr) {
         templates                  = nullptr;
         // Ref design: vhdl/ips/mephisto_core
-        const bool isImplicitRange = tr->ranges.size() * 2 < decl->templateParameters.size();
+        bool isImplicitRange = tr->ranges.size() * 2 < decl->templateParameters.size();
         if (ddecl->getType() == tr && ddecl->getValue() != nullptr && isImplicitRange) {
             ddecl->getValue()->acceptVisitor(*this);
             Range *r  = nullptr;
@@ -1280,7 +1280,7 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         std::string rName = (*j)->getName();
         ++j;
 
-        const bool invertedRange = (*i)->getDirection() == dir_upto;
+        bool invertedRange = (*i)->getDirection() == dir_upto;
 
         auto *tpa_l = new ValueTPAssign();
         tpa_l->setName(lName);
@@ -1391,9 +1391,9 @@ auto PostParsingVisitor_step1::_refineAggregate2Record(Aggregate &o) -> Value *
 auto PostParsingVisitor_step1::_isTypedRange(Range *r) -> bool
 {
     messageAssert(r != nullptr, "Unexpected NULl range", nullptr, _sem);
-    const bool isString    = dynamic_cast<String *>(r->getParent()) != nullptr;
-    const bool leftIsNull  = r->getLeftBound() == nullptr;
-    const bool rightIsNull = r->getRightBound() == nullptr;
+    bool isString    = dynamic_cast<String *>(r->getParent()) != nullptr;
+    bool leftIsNull  = r->getLeftBound() == nullptr;
+    bool rightIsNull = r->getRightBound() == nullptr;
 
     return (leftIsNull && rightIsNull) || (isString && (leftIsNull || rightIsNull));
 }
@@ -1450,7 +1450,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
     }
 
     auto *stringParent  = dynamic_cast<String *>(o.getParent());
-    const bool isString = (stringParent != nullptr);
+    bool isString = (stringParent != nullptr);
 
     // Range with unsetted bounds
     auto *tdo      = hif::getNearestParent<TypeDef>(&o);
@@ -1680,7 +1680,7 @@ auto PostParsingVisitor_step1::_isSingleBoundRange(Range &o) -> bool
     if (std == nullptr) {
         return false;
     }
-    const bool isStd = (std->getName() == "standard");
+    bool isStd = (std->getName() == "standard");
     if (!isStd) {
         return false;
     }
@@ -1732,7 +1732,7 @@ auto PostParsingVisitor_step1::_fixSingleBoundRange(Range &o) -> Range *
     Type *innerT = hif::typeGetNestedType(a, _sem, n - 1);
     Range *ret   = hif::copy(hif::typeGetSpan(innerT, _sem));
 
-    const bool doRevert = (objectMatchName(lb, "reverse_range"));
+    bool doRevert = (objectMatchName(lb, "reverse_range"));
     if (doRevert) {
         Value *tmp = ret->getLeftBound();
         ret->setLeftBound(ret->getRightBound());
@@ -1784,8 +1784,8 @@ void PostParsingVisitor_step1::_fixBlockStatements(View *o)
         }
 
         // Restricting VHDL block-statement case
-        const bool emptyTP    = v->templateParameters.empty();
-        const bool emptyPorts = v->getEntity()->ports.empty();
+        bool emptyTP    = v->templateParameters.empty();
+        bool emptyPorts = v->getEntity()->ports.empty();
         messageAssert(emptyTP && emptyPorts, "Unsupported", v, _sem);
 
         // Recursion must be performed here, before GuideVisitor of View
