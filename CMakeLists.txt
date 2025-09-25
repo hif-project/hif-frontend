@@ -106,7 +106,6 @@ target_include_directories(
 
 target_link_libraries(
     verilog2hif PUBLIC
-    ${FLEX_LIBRARIES}
     ${HIF_LIBRARY}
 )
 
@@ -214,7 +213,6 @@ target_include_directories(
 # Link libraries.
 target_link_libraries(
     vhdl2hif PUBLIC
-    ${FLEX_LIBRARIES}
     ${HIF_LIBRARY}
 )
 
