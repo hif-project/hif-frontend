@@ -67,6 +67,7 @@ bison_target(
     verilog_parser
     "${PROJECT_SOURCE_DIR}/grammar/verilog.yxx"
     "${PROJECT_BINARY_DIR}/verilog_parser.cpp"
+    COMPILE_FLAGS -Wno-other
 )
 
 flex_target(
@@ -180,8 +181,10 @@ bison_target(
     vhdl_parser
     "${PROJECT_SOURCE_DIR}/grammar/vhdl.yxx"
     "${PROJECT_BINARY_DIR}/vhdlParser.cpp"
+    COMPILE_FLAGS -Wno-other
 )
 
+set(FLEX_FLAGS -w)
 flex_target(
     vhdl_lexer
     "${PROJECT_SOURCE_DIR}/grammar/vhdl.lex"
