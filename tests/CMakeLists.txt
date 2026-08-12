@@ -50,3 +50,20 @@ add_test(
     COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/reduction_nand
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/reduction_nand.v
 )
+
+# Regression: two continuous assigns to different bit-selects of the same
+# signal crash post-parsing refinement step 3 - this is the exact
+# textbook case splitLogicConesLoops's own doc comment describes handling
+# ("a[0] = expr1; a[1] = expr2; --> ..."), so this function has apparently
+# never worked for its own worked example. Root cause: it calls
+# hif::getTerminalPrefix() with default options, which (despite the
+# header's doc-comment claiming recurseIntoMembers/recurseIntoSlices
+# default to true) actually default to false since the struct has no
+# member initializers - so it returns the Member/Slice node itself
+# instead of the underlying Identifier, and getDeclaration() on that
+# non-symbol object asserts. See fixtures/multiple_bitselect_assigns.v.
+add_test(
+    NAME multiple_bitselect_assigns
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/multiple_bitselect_assigns
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/multiple_bitselect_assigns.v
+)

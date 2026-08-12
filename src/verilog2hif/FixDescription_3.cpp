@@ -384,9 +384,18 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
     DataDeclarations declarations;
     DeclarationTokens declarationTokens;
     TokenNames tokenNames;
+    // Unwrap Member/Slice wrappers down to the underlying Identifier: the
+    // TerminalPrefixOptions default constructor value-initializes
+    // recurseIntoMembers/recurseIntoSlices to false (despite the header's
+    // doc-comment claiming they default to true), so without explicit
+    // options getTerminalPrefix would return the Member/Slice itself,
+    // which getDeclaration() cannot resolve (it isn't a symbol).
+    hif::TerminalPrefixOptions terminalPrefixOptions;
+    terminalPrefixOptions.recurseIntoMembers = true;
+    terminalPrefixOptions.recurseIntoSlices  = true;
     for (auto *ass : assigns) {
         Value *tgtValue      = ass->getLeftHandSide();
-        Value *tgt           = hif::getTerminalPrefix(tgtValue);
+        Value *tgt           = hif::getTerminalPrefix(tgtValue, terminalPrefixOptions);
         Declaration *tgtDecl = hif::semantics::getDeclaration(tgt, sem);
         messageAssert(tgtDecl != nullptr, "Declaration not found", tgt, sem);
         auto *tgtDataDecl = dynamic_cast<DataDeclaration *>(tgtDecl);
