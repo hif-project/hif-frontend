@@ -41,3 +41,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/escaped_identifier.v
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/multi_file_clean.v
 )
+
+# Regression: the ~& (reduction-NAND) operator is not supported - the grammar
+# has a stub production (K_NAND ... primary) that unconditionally calls
+# yyerror. See fixtures/reduction_nand.v.
+add_test(
+    NAME reduction_nand
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/reduction_nand
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/reduction_nand.v
+)
