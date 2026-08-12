@@ -206,6 +206,8 @@ public:
 
     static auto parse_ExpressionNorOperator(hif::Value *primary) -> hif::Value *;
 
+    static auto parse_ExpressionNandOperator(hif::Value *primary) -> hif::Value *;
+
     auto parse_RangeExpression(hif::Value *lbound, hif::Value *rbound) -> hif::Value *;
 
     auto parse_RangeExpressionPO_POS(hif::Value *lbound, hif::Value *rbound) -> hif::Value *;
