@@ -1,10 +1,12 @@
 /// @file VhdlParser_extension.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
 #include <map>
+#include <utility>
 
 #include "vhdl2hif/vhdl_parser.hpp"
 #include "vhdl2hif/vhdl_support.hpp"
@@ -74,28 +76,27 @@ void VhdlParser::_initStandardLibraries()
 void VhdlParser::_populateContents(Contents *contents_o, std::list<concurrent_statement_t *> *concurrent_statement_list)
 {
     GlobalAction *global_o = contents_o->getGlobalAction();
-    for (std::list<concurrent_statement_t *>::iterator i = concurrent_statement_list->begin();
-         i != concurrent_statement_list->end(); ++i) {
-        concurrent_statement_t *stm = *i;
+    for (auto &i : *concurrent_statement_list) {
+        concurrent_statement_t *stm = i;
 
         if (stm->process != nullptr) {
-            contents_o->stateTables.push_back((*i)->process);
+            contents_o->stateTables.push_back(i->process);
         } else if (stm->instantiation != nullptr) {
-            contents_o->instances.push_back((*i)->instantiation);
+            contents_o->instances.push_back(i->instantiation);
         } else if (stm->signal_assignment != nullptr) {
-            global_o->actions.merge(*(*i)->signal_assignment);
-            delete (*i)->signal_assignment;
+            global_o->actions.merge(*i->signal_assignment);
+            delete i->signal_assignment;
         } else if (stm->generate != nullptr) {
-            contents_o->generates.push_back((*i)->generate);
+            contents_o->generates.push_back(i->generate);
         } else if (stm->component_instantiation != nullptr) {
-            contents_o->instances.push_back((*i)->component_instantiation);
+            contents_o->instances.push_back(i->component_instantiation);
         } else if (stm->block != nullptr) {
             contents_o->declarations.push_back(stm->block);
         } else {
             yyerror("Unexpected architecture concurrent statement.");
         }
 
-        delete *i;
+        delete i;
     }
 }
 
@@ -107,7 +108,7 @@ void VhdlParser::_populateConfigurationMap(
         component_configuration_t *comp_config = configuration_item->component_configuration;
         component_specification_t *comp_spec   = comp_config->component_specification;
 
-        ViewReference *viewref_o;
+        ViewReference *viewref_o = nullptr;
 
         if (comp_spec->instantiation_list->identifier_list != nullptr) {
             BList<Identifier> *id_list = comp_spec->instantiation_list->identifier_list;
@@ -117,7 +118,7 @@ void VhdlParser::_populateConfigurationMap(
                 setCodeInfo(viewref_o);
                 viewref_o->setDesignUnit(comp_spec->component_name->getName());
 
-                Instance *instance_o = new Instance();
+                auto *instance_o = new Instance();
                 setCodeInfo(instance_o);
                 instance_o->setName((*id)->getName());
                 instance_o->setReferencedType(viewref_o);
@@ -131,7 +132,7 @@ void VhdlParser::_populateConfigurationMap(
             setCodeInfo(viewref_o);
             viewref_o->setDesignUnit(comp_spec->component_name->getName());
 
-            Instance *instance_o = new Instance();
+            auto *instance_o = new Instance();
             setCodeInfo(instance_o);
             instance_o->setReferencedType(viewref_o);
             instance_o->addProperty("CONFIGURATION_ALL");
@@ -142,7 +143,7 @@ void VhdlParser::_populateConfigurationMap(
             setCodeInfo(viewref_o);
             viewref_o->setDesignUnit(comp_spec->component_name->getName());
 
-            Instance *instance_o = new Instance();
+            auto *instance_o = new Instance();
             setCodeInfo(instance_o);
             instance_o->setReferencedType(viewref_o);
             instance_o->addProperty("CONFIGURATION_OTHERS");
@@ -158,8 +159,7 @@ void VhdlParser::_populateConfigurationMap(
         map<Instance *, binding_indication_t *> *component_configuration_map =
             block_config->component_configuration_map;
 
-        for (map<Instance *, binding_indication_t *>::iterator it = component_configuration_map->begin();
-             it != component_configuration_map->end(); ++it) {
+        for (auto &it : *component_configuration_map) {
             // TODO: manage block_name
 
             //            ViewReference * view_ref =
@@ -168,7 +168,7 @@ void VhdlParser::_populateConfigurationMap(
             //            Identifier * block_name = block_config->block_specification->block_name;
             //            view_ref->setName(  block_name->getName( ) );
 
-            config_map->insert(make_pair(it->first, it->second));
+            config_map->insert(make_pair(it.first, it.second));
         }
 
         component_configuration_map->clear();
@@ -180,18 +180,19 @@ void VhdlParser::_populateConfigurationMap(
     }
 }
 
-Type *VhdlParser::_resolveType(string type_ref, BList<Value> *opt_arg, Range *ro)
+auto VhdlParser::_resolveType(string type_ref, BList<Value> *opt_arg, Range *ro) -> Type *
 {
-    Type *t = resolveType(type_ref, opt_arg, ro, _sem, true);
-    if (t != nullptr)
+    Type *t = resolveType(std::move(type_ref), opt_arg, ro, _sem, true);
+    if (t != nullptr) {
         _factory.codeInfo(t, yyfilename, static_cast<unsigned int>(yylineno));
+    }
 
     return t;
 }
 
-ReferencedType *VhdlParser::_resolveFieldReferenceType(FieldReference *fr)
+auto VhdlParser::_resolveFieldReferenceType(FieldReference *fr) -> ReferencedType *
 {
-    TypeReference *ret = new TypeReference();
+    auto *ret = new TypeReference();
     setCodeInfo(ret);
     ret->setName(fr->getName());
     ret->setInstance(resolveLibraryType(fr->getPrefix()));
@@ -200,13 +201,12 @@ ReferencedType *VhdlParser::_resolveFieldReferenceType(FieldReference *fr)
     return ret;
 }
 
-System *VhdlParser::buildSystemObject()
+auto VhdlParser::buildSystemObject() -> System *
 {
-    System *system_o = new System();
+    auto *system_o = new System();
     system_o->setName("system");
 
-    for (list<architecture_body_t *>::iterator ai = du_definitions->begin(); ai != du_definitions->end(); ++ai) {
-        architecture_body_t *archBody = *ai;
+    for (auto *archBody : *du_definitions) {
         messageAssert(archBody != nullptr, "Unexpected nullptr", nullptr, nullptr);
 
         for (BList<DesignUnit>::iterator dui = du_declarations->begin(); dui != du_declarations->end(); ++dui) {
@@ -219,9 +219,7 @@ System *VhdlParser::buildSystemObject()
             }
         }
 
-        for (std::list<DesignUnit *>::iterator i = archBody->components.begin(); i != archBody->components.end(); ++i) {
-            DesignUnit *comp = *i;
-
+        for (auto *comp : archBody->components) {
             bool found = false;
             for (BList<DesignUnit>::iterator dui = du_declarations->begin(); dui != du_declarations->end(); ++dui) {
                 if ((*dui)->getName() == comp->getName()) {
@@ -230,8 +228,9 @@ System *VhdlParser::buildSystemObject()
                 }
             }
 
-            if (!found)
+            if (!found) {
                 du_declarations->push_back(comp);
+            }
         }
 
         delete archBody;
@@ -263,54 +262,54 @@ void VhdlParser::_fixIntancesWithComponent(Contents *contents, View *component)
     std::list<Instance *> list;
     hif::search(list, contents, q);
 
-    NameTable *nt = hif::NameTable::getInstance();
-    for (std::list<Instance *>::iterator i = list.begin(); i != list.end(); ++i) {
-        Instance *inst = *i;
-
+    for (auto *inst : list) {
         if (dynamic_cast<BaseContents *>(inst->getParent()) == nullptr) {
             // In this case it could be a prefix of a fcall:
             // e.g. HifUtility standard functions
             continue;
         }
 
-        ViewReference *vr = dynamic_cast<ViewReference *>(inst->getReferencedType());
+        auto *vr = dynamic_cast<ViewReference *>(inst->getReferencedType());
         messageAssert(vr != nullptr, "Unexpected ReferencedType.", inst->getReferencedType(), nullptr);
 
-        DesignUnit *du = dynamic_cast<DesignUnit *>(component->getParent());
+        auto *du = dynamic_cast<DesignUnit *>(component->getParent());
         messageAssert(du != nullptr, "Cannot find parent du.", vr, nullptr);
 
-        if ((vr->getName() != nt->none() && vr->getName() != component->getName()) ||
-            du->getName() != vr->getDesignUnit())
+        if ((vr->getName() != hif::NameTable::none() && vr->getName() != component->getName()) ||
+            du->getName() != vr->getDesignUnit()) {
             continue;
+        }
 
         // Fix templates
         for (BList<Declaration>::iterator j = component->templateParameters.begin();
              j != component->templateParameters.end(); ++j) {
-            ValueTP *vtp = dynamic_cast<ValueTP *>(*j);
+            auto *vtp = dynamic_cast<ValueTP *>(*j);
             messageAssert(vtp != nullptr, "Unexpected Template.", *j, nullptr);
 
             bool found = false;
             for (BList<TPAssign>::iterator k = vr->templateParameterAssigns.begin();
                  k != vr->templateParameterAssigns.end(); ++k) {
-                ValueTPAssign *vtpa = dynamic_cast<ValueTPAssign *>(*k);
+                auto *vtpa = dynamic_cast<ValueTPAssign *>(*k);
                 messageAssert(vtpa != nullptr, "Unexpected template assign.", *k, _sem);
 
                 messageAssert(!vtpa->getName().empty(), "Unexpected nullptr name", vtpa, _sem);
-                if (vtpa->getName() == nt->none()) {
+                if (vtpa->getName() == hif::NameTable::none()) {
                     vtpa->setName(vtp->getName());
                 }
 
-                if (vtp->getName() != vtpa->getName())
+                if (vtp->getName() != vtpa->getName()) {
                     continue;
+                }
                 found = true;
                 messageAssert(vtpa->getValue() != nullptr, "Unexpected nullptr value", vtpa, _sem);
                 break;
             }
 
-            if (vtp->getValue() == nullptr)
+            if (vtp->getValue() == nullptr) {
                 continue;
+            }
             if (!found) {
-                ValueTPAssign *vtpa = new ValueTPAssign();
+                auto *vtpa = new ValueTPAssign();
                 vtpa->setValue(hif::copy(vtp->getValue()));
                 vtpa->setName(vtp->getName());
                 vr->templateParameterAssigns.push_back(vtpa);
@@ -327,22 +326,24 @@ void VhdlParser::_fixIntancesWithComponent(Contents *contents, View *component)
                 PortAssign *pa = *k;
 
                 messageAssert(!pa->getName().empty(), "Unexpected nullptr name", pa, _sem);
-                if (pa->getName() == nt->none()) {
+                if (pa->getName() == hif::NameTable::none()) {
                     pa->setName(port->getName());
                 }
 
-                if (port->getName() != pa->getName())
+                if (port->getName() != pa->getName()) {
                     continue;
+                }
                 found = true;
                 // Can be an explicit open oprt assign...
                 //assert (pa->getValue() != nullptr);
                 break;
             }
 
-            if (port->getValue() == nullptr)
+            if (port->getValue() == nullptr) {
                 continue;
+            }
             if (!found) {
-                PortAssign *pa = new PortAssign();
+                auto *pa = new PortAssign();
                 pa->setValue(hif::copy(port->getValue()));
                 pa->setName(port->getName());
                 inst->portAssigns.push_back(pa);

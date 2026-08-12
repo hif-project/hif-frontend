@@ -32,22 +32,21 @@ Checks:
 - -cppcoreguidelines-avoid-non-const-global-variables
 - -cppcoreguidelines-avoid-magic-numbers
 - -cppcoreguidelines-avoid-do-while
-
 WarningsAsErrors: ''
 HeaderFileExtensions:
-  - ''
-  - h
-  - hh
-  - hpp
-  - hxx
+- ''
+- h
+- hh
+- hpp
+- hxx
 ImplementationFileExtensions:
-  - c
-  - cc
-  - cpp
-  - cxx
+- c
+- cc
+- cpp
+- cxx
 HeaderFilterRegex: ''
-FormatStyle:     none
-User:            enrico
+FormatStyle: none
+User: enrico
 CheckOptions:
   cert-dcl16-c.NewSuffixes: 'L;LL;LU;LLU'
   cert-err33-c.AllowCastToVoid: 'true'
@@ -62,5 +61,5 @@ CheckOptions:
   llvm-else-after-return.WarnOnConditionVariables: 'false'
   llvm-else-after-return.WarnOnUnfixable: 'false'
   llvm-qualified-auto.AddConstToQualified: 'false'
-SystemHeaders:   false
+SystemHeaders: false
 ...

@@ -1,6 +1,7 @@
 /// @file mark_ams_language.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -10,31 +11,31 @@ class AmsMarker : public hif::DeclarationVisitor
 {
 public:
     AmsMarker(const hif::DeclarationVisitorOptions &opts);
-    virtual ~AmsMarker();
+    ~AmsMarker() override;
 
-    virtual int visitFunctionCall(hif::FunctionCall &o);
-    virtual int visitIdentifier(hif::Identifier &o);
-    virtual int visitProcedureCall(hif::ProcedureCall &o);
-    virtual int visitLibraryDef(hif::LibraryDef &o);
-    virtual int visitStateTable(hif::StateTable &o);
-    virtual int visitSystem(hif::System &o);
-    virtual int visitTypeReference(hif::TypeReference &o);
-    virtual int visitView(hif::View &o);
-    virtual int visitViewReference(hif::ViewReference &o);
+    auto visitFunctionCall(hif::FunctionCall &o) -> int override;
+    auto visitIdentifier(hif::Identifier &o) -> int override;
+    auto visitProcedureCall(hif::ProcedureCall &o) -> int override;
+    auto visitLibraryDef(hif::LibraryDef &o) -> int override;
+    auto visitStateTable(hif::StateTable &o) -> int override;
+    auto visitSystem(hif::System &o) -> int override;
+    auto visitTypeReference(hif::TypeReference &o) -> int override;
+    auto visitView(hif::View &o) -> int override;
+    auto visitViewReference(hif::ViewReference &o) -> int override;
 
 private:
     template <typename T> void _checkAmsSymbol(T *symbol);
     void _markScope(hif::Object *o);
 
-    bool _isAms;
+    bool _isAms{false};
 
-    AmsMarker(AmsMarker &);
-    AmsMarker &operator=(const AmsMarker &);
+    AmsMarker(AmsMarker &)                           = delete;
+    auto operator=(const AmsMarker &) -> AmsMarker & = delete;
 };
 
 AmsMarker::AmsMarker(const hif::DeclarationVisitorOptions &opts)
     : hif::DeclarationVisitor(opts)
-    , _isAms(false)
+
 {
     // ntd
 }
@@ -44,66 +45,70 @@ AmsMarker::~AmsMarker()
     // ntd
 }
 
-int AmsMarker::visitFunctionCall(hif::FunctionCall &o)
+auto AmsMarker::visitFunctionCall(hif::FunctionCall &o) -> int
 {
     DeclarationVisitor::visitFunctionCall(o);
     _checkAmsSymbol(&o);
     return 0;
 }
 
-int AmsMarker::visitIdentifier(hif::Identifier &o)
+auto AmsMarker::visitIdentifier(hif::Identifier &o) -> int
 {
     DeclarationVisitor::visitIdentifier(o);
     _checkAmsSymbol(&o);
     return 0;
 }
 
-int AmsMarker::visitProcedureCall(hif::ProcedureCall &o)
+auto AmsMarker::visitProcedureCall(hif::ProcedureCall &o) -> int
 {
     DeclarationVisitor::visitProcedureCall(o);
     _checkAmsSymbol(&o);
     return 0;
 }
 
-int AmsMarker::visitLibraryDef(hif::LibraryDef &o)
+auto AmsMarker::visitLibraryDef(hif::LibraryDef &o) -> int
 {
-    if (o.isStandard())
+    if (o.isStandard()) {
         return 0;
+    }
     return DeclarationVisitor::visitLibraryDef(o);
 }
 
-int AmsMarker::visitStateTable(hif::StateTable &o)
+auto AmsMarker::visitStateTable(hif::StateTable &o) -> int
 {
     DeclarationVisitor::visitStateTable(o);
-    if (o.getFlavour() != hif::pf_analog)
+    if (o.getFlavour() != hif::pf_analog) {
         return 0;
+    }
     _markScope(&o);
     return 0;
 }
 
-int AmsMarker::visitSystem(hif::System &o)
+auto AmsMarker::visitSystem(hif::System &o) -> int
 {
     DeclarationVisitor::visitSystem(o);
-    if (_isAms)
+    if (_isAms) {
         o.setLanguageID(hif::ams);
+    }
     return 0;
 }
 
-int AmsMarker::visitTypeReference(hif::TypeReference &o)
+auto AmsMarker::visitTypeReference(hif::TypeReference &o) -> int
 {
     DeclarationVisitor::visitTypeReference(o);
     _checkAmsSymbol(&o);
     return 0;
 }
 
-int AmsMarker::visitView(hif::View &o)
+auto AmsMarker::visitView(hif::View &o) -> int
 {
-    if (o.isStandard())
+    if (o.isStandard()) {
         return 0;
+    }
     return DeclarationVisitor::visitView(o);
 }
 
-int AmsMarker::visitViewReference(hif::ViewReference &o)
+auto AmsMarker::visitViewReference(hif::ViewReference &o) -> int
 {
     DeclarationVisitor::visitViewReference(o);
     _checkAmsSymbol(&o);
@@ -114,19 +119,22 @@ template <typename T> void AmsMarker::_checkAmsSymbol(T *symbol)
 {
     typename T::DeclarationType *decl = hif::semantics::getDeclaration(symbol, _opt.sem);
     messageAssert(decl != nullptr, "Declaration not found", symbol, _opt.sem);
-    if (hif::objectGetLanguage(decl) != hif::ams)
+    if (hif::objectGetLanguage(decl) != hif::ams) {
         return;
+    }
     _markScope(symbol);
 }
 
 void AmsMarker::_markScope(hif::Object *o)
 {
-    hif::View *v = hif::getNearestParent<hif::View>(o);
-    if (v != nullptr)
+    auto *v = hif::getNearestParent<hif::View>(o);
+    if (v != nullptr) {
         v->setLanguageID(hif::ams);
-    hif::LibraryDef *ld = hif::getNearestParent<hif::LibraryDef>(o);
-    if (ld != nullptr)
+    }
+    auto *ld = hif::getNearestParent<hif::LibraryDef>(o);
+    if (ld != nullptr) {
         ld->setLanguageID(hif::ams);
+    }
     //    hif::System * sys = hif::getNearestParent<hif::System>(o);
     //    if (sys != nullptr) sys->setLanguageID(hif::ams);
 

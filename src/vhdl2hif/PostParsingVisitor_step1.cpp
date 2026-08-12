@@ -1,6 +1,7 @@
 /// @file PostParsingVisitor_step1.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -32,9 +33,9 @@ struct RangeInfo {
     RangeInfo(ValueTPAssign *l, ValueTPAssign *r);
     ~RangeInfo();
     RangeInfo(const RangeInfo &other);
-    RangeInfo &operator=(RangeInfo other);
-    bool operator<(const RangeInfo &other) const;
-    void swap(RangeInfo &other);
+    auto operator=(RangeInfo other) -> RangeInfo &;
+    auto operator<(const RangeInfo &other) const -> bool;
+    void swap(RangeInfo &other) noexcept;
 
     ValueTPAssign *left;
     ValueTPAssign *right;
@@ -66,40 +67,42 @@ RangeInfo::RangeInfo(const RangeInfo &other)
     // ntd
 }
 
-RangeInfo &RangeInfo::operator=(RangeInfo other)
+auto RangeInfo::operator=(RangeInfo other) -> RangeInfo &
 {
     swap(other);
     return *this;
 }
 
-bool RangeInfo::operator<(const RangeInfo &other) const
+auto RangeInfo::operator<(const RangeInfo &other) const -> bool
 {
-    if (left < other.left)
+    if (left < other.left) {
         return true;
-    if (left > other.left)
+    }
+    if (left > other.left) {
         return false;
+    }
     return right < other.right;
 }
 
-void RangeInfo::swap(RangeInfo &other)
+void RangeInfo::swap(RangeInfo &other) noexcept
 {
     std::swap(left, other.left);
     std::swap(right, other.right);
 }
 
-typedef std::set<RangeInfo> RangeInfoSet;
-typedef std::set<TypeReference *> TypeReferenceSet;
+using RangeInfoSet     = std::set<RangeInfo>;
+using TypeReferenceSet = std::set<TypeReference *>;
 
 struct RangeRefs {
     RangeRefs();
     ~RangeRefs();
     RangeRefs(const RangeRefs &other);
-    RangeRefs &operator=(RangeRefs other);
-    void swap(RangeRefs &other);
+    auto operator=(RangeRefs other) -> RangeRefs &;
+    void swap(RangeRefs &other) noexcept;
 
     RangeInfoSet uptos;
     RangeInfoSet downtos;
-    TypeDef *decl;
+    TypeDef *decl{nullptr};
     TypeReferenceSet uptoTyperefs;
     TypeReferenceSet downtoTyperefs;
 };
@@ -107,7 +110,6 @@ struct RangeRefs {
 RangeRefs::RangeRefs()
     : uptos()
     , downtos()
-    , decl(nullptr)
     , uptoTyperefs()
     , downtoTyperefs()
 {
@@ -129,13 +131,13 @@ RangeRefs::RangeRefs(const RangeRefs &other)
     // ntd
 }
 
-RangeRefs &RangeRefs::operator=(RangeRefs other)
+auto RangeRefs::operator=(RangeRefs other) -> RangeRefs &
 {
     swap(other);
     return *this;
 }
 
-void RangeRefs::swap(RangeRefs &other)
+void RangeRefs::swap(RangeRefs &other) noexcept
 {
     std::swap(uptos, other.uptos);
     std::swap(downtos, other.downtos);
@@ -144,7 +146,7 @@ void RangeRefs::swap(RangeRefs &other)
     std::swap(downtoTyperefs, other.downtoTyperefs);
 }
 
-typedef std::map<Range *, RangeRefs> RangeMap;
+using RangeMap = std::map<Range *, RangeRefs>;
 
 /// @brief Gets the declaration for a method call.
 /// Calling here the getDeclaration() is unsafe, and could fail, since
@@ -152,15 +154,16 @@ typedef std::map<Range *, RangeRefs> RangeMap;
 /// the fix of changing Aggregates to RecordValues is done in step2,
 /// therefore here we have to workaround.
 template <typename T>
-typename T::DeclarationType *_getMethodDeclaration(T *call, hif::semantics::ILanguageSemantics *sem)
+auto _getMethodDeclaration(T *call, hif::semantics::ILanguageSemantics *sem) -> typename T::DeclarationType *
 {
     std::list<typename T::DeclarationType *> candidates;
     hif::semantics::GetCandidatesOptions opt;
     opt.atLeastOne      = true;
     opt.looseTypeChecks = true;
     hif::semantics::getCandidates(candidates, call, sem, opt);
-    if (candidates.empty())
+    if (candidates.empty()) {
         return nullptr;
+    }
     messageAssert(candidates.size() == 1, "Cannot resolve candidates for method call.", call, sem);
     typename T::DeclarationType *function_o = candidates.front();
     hif::semantics::setDeclaration(call, function_o);
@@ -185,8 +188,8 @@ void make_template_bounds(ValueTP *&tp_l, ValueTP *&tp_r, Range *o)
     tp_r->setName(right);
     tp_r->setType(hif::copy(lint_o));
 
-    Identifier *lid = new Identifier(left);
-    Identifier *rid = new Identifier(right);
+    auto *lid = new Identifier(left);
+    auto *rid = new Identifier(right);
 
     o->setLeftBound(lid);
     o->setRightBound(rid);
@@ -194,42 +197,51 @@ void make_template_bounds(ValueTP *&tp_l, ValueTP *&tp_r, Range *o)
 }
 
 /// @brief Given a logical operator returns its bwise form.
-Operator _getBwise(Operator currOp)
+auto _getBwise(Operator currOp) -> Operator
 {
-    if (currOp == op_xor)
+    if (currOp == op_xor) {
         return op_bxor;
-    if (currOp == op_and)
+    }
+    if (currOp == op_and) {
         return op_band;
-    if (currOp == op_or)
+    }
+    if (currOp == op_or) {
         return op_bor;
-    if (currOp == op_not)
+    }
+    if (currOp == op_not) {
         return op_bnot;
+    }
     return currOp;
 }
 
-bool _replaceLogicalOperators(Expression &o, hif::semantics::ILanguageSemantics *sem)
+auto _replaceLogicalOperators(Expression &o, hif::semantics::ILanguageSemantics *sem) -> bool
 {
     // if is logical: replace with bitwise if operands are not bool, bit.
-    if (!hif::operatorIsLogical(o.getOperator()))
+    if (!hif::operatorIsLogical(o.getOperator())) {
         return false;
+    }
 
     messageAssert(o.getValue1() != nullptr, "Expected expression without op1", &o, sem);
     Type *op1Type = hif::semantics::getSemanticType(o.getValue1(), sem);
     Bit *bit1     = dynamic_cast<Bit *>(op1Type);
     Bool *bool1   = dynamic_cast<Bool *>(op1Type);
 
-    if (bool1 != nullptr)
+    if (bool1 != nullptr) {
         return false;
+    }
     if (bit1 != nullptr && !bit1->isLogic() && o.getOperator() != op_not) {
-        if (o.getValue2() == nullptr)
+        if (o.getValue2() == nullptr) {
             return false;
+        }
         Type *op2Type = hif::semantics::getSemanticType(o.getValue2(), sem);
         Bit *bit2     = dynamic_cast<Bit *>(op2Type);
         Bool *bool2   = dynamic_cast<Bool *>(op2Type);
-        if (bool2 != nullptr)
+        if (bool2 != nullptr) {
             return false;
-        if (bit2 != nullptr && !bit2->isLogic() && o.getOperator() != op_xor)
+        }
+        if (bit2 != nullptr && !bit2->isLogic() && o.getOperator() != op_xor) {
             return false;
+        }
     }
 
     // If at least an operand is not ( bit(not logic) or boolean )
@@ -242,13 +254,15 @@ bool _replaceLogicalOperators(Expression &o, hif::semantics::ILanguageSemantics 
     return true;
 }
 
-bool _replaceRelationalOperators(Expression &o, hif::semantics::ILanguageSemantics *sem)
+auto _replaceRelationalOperators(Expression &o, hif::semantics::ILanguageSemantics *sem) -> bool
 {
     // if is logical: replace with bitwise if operands are not bool, bit.
-    if (!hif::operatorIsRelational(o.getOperator()))
+    if (!hif::operatorIsRelational(o.getOperator())) {
         return false;
-    if (o.getOperator() != op_eq && o.getOperator() != op_neq)
+    }
+    if (o.getOperator() != op_eq && o.getOperator() != op_neq) {
         return false;
+    }
 
     hif::semantics::getSemanticType(&o, sem);
 
@@ -257,39 +271,44 @@ bool _replaceRelationalOperators(Expression &o, hif::semantics::ILanguageSemanti
     Type *base1   = hif::semantics::getBaseType(op1Type, false, sem);
     Type *base2   = hif::semantics::getBaseType(op2Type, false, sem);
 
-    Bit *bit1      = dynamic_cast<Bit *>(base1);
-    Bit *bit2      = dynamic_cast<Bit *>(base2);
-    Bitvector *bv1 = dynamic_cast<Bitvector *>(base1);
-    Bitvector *bv2 = dynamic_cast<Bitvector *>(base2);
-    Signed *s1     = dynamic_cast<Signed *>(base1);
-    Signed *s2     = dynamic_cast<Signed *>(base2);
-    Unsigned *u1   = dynamic_cast<Unsigned *>(base1);
-    Unsigned *u2   = dynamic_cast<Unsigned *>(base2);
+    Bit *bit1 = dynamic_cast<Bit *>(base1);
+    Bit *bit2 = dynamic_cast<Bit *>(base2);
+    auto *bv1 = dynamic_cast<Bitvector *>(base1);
+    auto *bv2 = dynamic_cast<Bitvector *>(base2);
+    auto *s1  = dynamic_cast<Signed *>(base1);
+    auto *s2  = dynamic_cast<Signed *>(base2);
+    auto *u1  = dynamic_cast<Unsigned *>(base1);
+    auto *u2  = dynamic_cast<Unsigned *>(base2);
 
     if (u1 != nullptr || u2 != nullptr || s1 != nullptr || s2 != nullptr) {
         // If numeric_std: then replace with case_eq/case_neq
         // If arith/signed/unsigned: keep eq/neq
         Scope *s          = hif::getNearestScope(&o, false, true, false);
         BList<Library> *l = hif::objectGetLibraryList(s);
-        const bool isInLogicLib =
+        bool isInLogicLib =
             (l->findByName("ieee_std_logic_arith") != nullptr || l->findByName("ieee_std_logic_signed") != nullptr ||
              l->findByName("ieee_std_logic_unsigned") != nullptr);
-        if (isInLogicLib)
+        if (isInLogicLib) {
             return false;
+        }
     } else if (bv1 == nullptr && bv2 == nullptr) {
-        if (bit1 == nullptr || bit2 == nullptr)
+        if (bit1 == nullptr || bit2 == nullptr) {
             return false;
-        if (!bit1->isLogic() && !bit2->isLogic())
+        }
+        if (!bit1->isLogic() && !bit2->isLogic()) {
             return false;
+        }
     } else {
-        if (bv1 == nullptr || bv2 == nullptr)
+        if (bv1 == nullptr || bv2 == nullptr) {
             return false;
+        }
     }
 
-    if (o.getOperator() == op_eq)
+    if (o.getOperator() == op_eq) {
         o.setOperator(op_case_eq);
-    else
+    } else {
         o.setOperator(op_case_neq);
+    }
 
     return true;
 }
@@ -298,91 +317,92 @@ class PostParsingVisitor_step1 : public hif::GuideVisitor
 {
 public:
     PostParsingVisitor_step1(hif::semantics::ILanguageSemantics *sem);
-    virtual ~PostParsingVisitor_step1();
+    ~PostParsingVisitor_step1() override;
 
-    int visitAggregate(hif::Aggregate &o);
-    int visitArray(hif::Array &o);
-    int visitBitvector(hif::Bitvector &o);
-    int visitEnumValue(hif::EnumValue &o);
-    int visitExpression(hif::Expression &o);
-    int visitFieldReference(hif::FieldReference &o);
-    int visitFunctionCall(hif::FunctionCall &o);
-    int visitFunction(hif::Function &o);
-    int visitIdentifier(hif::Identifier &o);
-    int visitLibraryDef(hif::LibraryDef &o);
-    int visitPointer(hif::Pointer &o);
-    int visitProcedure(hif::Procedure &o);
-    int visitProcedureCall(hif::ProcedureCall &o);
-    int visitRange(hif::Range &o);
-    int visitView(hif::View &o);
-    int visitViewReference(hif::ViewReference &o);
-    int visitSystem(hif::System &o);
-    int visitTypeReference(hif::TypeReference &o);
+    auto visitAggregate(hif::Aggregate &o) -> int override;
+    auto visitArray(hif::Array &o) -> int override;
+    auto visitBitvector(hif::Bitvector &o) -> int override;
+    auto visitEnumValue(hif::EnumValue &o) -> int override;
+    auto visitExpression(hif::Expression &o) -> int override;
+    auto visitFieldReference(hif::FieldReference &o) -> int override;
+    auto visitFunctionCall(hif::FunctionCall &o) -> int override;
+    auto visitFunction(hif::Function &o) -> int override;
+    auto visitIdentifier(hif::Identifier &o) -> int override;
+    auto visitLibraryDef(hif::LibraryDef &o) -> int override;
+    auto visitPointer(hif::Pointer &o) -> int override;
+    auto visitProcedure(hif::Procedure &o) -> int override;
+    auto visitProcedureCall(hif::ProcedureCall &o) -> int override;
+    auto visitRange(hif::Range &o) -> int override;
+    auto visitView(hif::View &o) -> int override;
+    auto visitViewReference(hif::ViewReference &o) -> int override;
+    auto visitSystem(hif::System &o) -> int override;
+    auto visitTypeReference(hif::TypeReference &o) -> int override;
 
     // constant
-    virtual int visitBitValue(hif::BitValue &o);
-    virtual int visitBitvectorValue(hif::BitvectorValue &o);
-    virtual int visitBoolValue(hif::BoolValue &o);
-    virtual int visitCharValue(hif::CharValue &o);
-    virtual int visitIntValue(hif::IntValue &o);
-    virtual int visitRealValue(hif::RealValue &o);
-    virtual int visitStringValue(hif::StringValue &o);
+    auto visitBitValue(hif::BitValue &o) -> int override;
+    auto visitBitvectorValue(hif::BitvectorValue &o) -> int override;
+    auto visitBoolValue(hif::BoolValue &o) -> int override;
+    auto visitCharValue(hif::CharValue &o) -> int override;
+    auto visitIntValue(hif::IntValue &o) -> int override;
+    auto visitRealValue(hif::RealValue &o) -> int override;
+    auto visitStringValue(hif::StringValue &o) -> int override;
 
     // data declarations
-    virtual int visitAlias(Alias &o);
-    virtual int visitConst(Const &o);
+    auto visitAlias(Alias &o) -> int override;
+    auto visitConst(Const &o) -> int override;
     //virtual int visitEnumValue(EnumValue &o);
-    virtual int visitField(Field &o);
-    virtual int visitParameter(Parameter &o);
-    virtual int visitPort(Port &o);
-    virtual int visitSignal(Signal &o);
-    virtual int visitVariable(Variable &o);
-    virtual int visitValueTP(ValueTP &o);
+    auto visitField(Field &o) -> int override;
+    auto visitParameter(Parameter &o) -> int override;
+    auto visitPort(Port &o) -> int override;
+    auto visitSignal(Signal &o) -> int override;
+    auto visitVariable(Variable &o) -> int override;
+    auto visitValueTP(ValueTP &o) -> int override;
 
-    virtual int visitAssign(Assign &o);
-    virtual int visitPortAssign(PortAssign &o);
-    virtual int visitParameterAssign(ParameterAssign &o);
+    auto visitAssign(Assign &o) -> int override;
+    auto visitPortAssign(PortAssign &o) -> int override;
+    auto visitParameterAssign(ParameterAssign &o) -> int override;
     //virtual int visitFunctionCall(FunctionCall &o);
 
-    bool fixCollectRanges();
+    auto fixCollectRanges() -> bool;
 
-    bool secondVisit;
+    bool secondVisit{false};
 
 private:
-    PostParsingVisitor_step1(const PostParsingVisitor_step1 &o);
-    PostParsingVisitor_step1 &operator=(const PostParsingVisitor_step1 &o);
+    PostParsingVisitor_step1(const PostParsingVisitor_step1 &o)                     = delete;
+    auto operator=(const PostParsingVisitor_step1 &o) -> PostParsingVisitor_step1 & = delete;
 
     void _fixConstValue(hif::ConstValue &o);
     void _fixTemplateTypereferences(hif::TypeReference *tr, hif::TypeDef *decl);
-    bool _setSignOfArray(hif::Bitvector &o, hif::BList<hif::Library> &libraries);
+    auto _setSignOfArray(hif::Bitvector &o, hif::BList<hif::Library> &libraries) -> bool;
 
-    Value *_refineAggregate2Record(Aggregate &o);
+    auto _refineAggregate2Record(Aggregate &o) -> Value *;
 
-    bool _isTypedRange(Range *r);
+    auto _isTypedRange(Range *r) -> bool;
     void _fixRangeTypedrange(Range &o);
 
     // Fix attribute RANGE/REVERSE_RANGE
-    bool _isSingleBoundRange(Range &o);
-    Range *_fixSingleBoundRange(Range &o);
+    auto _isSingleBoundRange(Range &o) -> bool;
+    auto _fixSingleBoundRange(Range &o) -> Range *;
 
     /// @name View-related fixes
     /// @{
-    void _fixUselessLibraryInclusions(View *o);
+    static void _fixUselessLibraryInclusions(View *o);
     void _fixBlockStatements(View *o);
     /// @}
 
-    Value *_fixFunctionCall(FunctionCall *o);
-    Value *_fixFunctionCall2TypeRef(FunctionCall *o, TypeReference *typeref, TypeReference::DeclarationType *declTr);
-    Value *_fixFunctionCall2MemberOrSlice(FunctionCall *o, Value *currentMember, Declaration *memDecl);
+    auto _fixFunctionCall(FunctionCall *o) -> Value *;
+    auto _fixFunctionCall2TypeRef(FunctionCall *o, TypeReference *typeref, TypeReference::DeclarationType *declTr)
+        -> Value *;
+    auto _fixFunctionCall2MemberOrSlice(FunctionCall *o, Value *currentMember, Declaration *memDecl) -> Value *;
 
     hif::semantics::ILanguageSemantics *_sem;
     hif::HifFactory _factory;
 
-    std::set<hif::SubProgram *> _currentSubs;
+    std::set<hif::SubProgram *> _currentSubs{};
 
-    bool _haveMeetAggregate;
-    bool _haveToFixAggregate;
-    bool _addArith;
+    bool _haveMeetAggregate{false};
+    bool _haveToFixAggregate{false};
+    bool _addArith{false};
 
     RangeMap _rangeMap;
 
@@ -390,13 +410,9 @@ private:
 };
 
 PostParsingVisitor_step1::PostParsingVisitor_step1(hif::semantics::ILanguageSemantics *sem)
-    : secondVisit(false)
-    , _sem(sem)
+    : _sem(sem)
     , _factory(_sem)
     , _currentSubs()
-    , _haveMeetAggregate(false)
-    , _haveToFixAggregate(false)
-    , _addArith(false)
     , _rangeMap()
     , _unconstrainedGenerics()
 {
@@ -414,7 +430,7 @@ PostParsingVisitor_step1::~PostParsingVisitor_step1()
         _unconstrainedGenerics);
 }
 
-int PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o)
+auto PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o) -> int
 {
     // First run to perform other fixes different from _refineAggregate2Record
     // Second run (top-down) to perform _refineAggregate2Record
@@ -423,12 +439,13 @@ int PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o)
     //        return GuideVisitor::visitAggregate(o);
     //    else if (!secondVisit)
     //        GuideVisitor::visitAggregate(o);
-    if (!secondVisit)
+    if (!secondVisit) {
         return GuideVisitor::visitAggregate(o);
+    }
 
     // 1st run
     if (!_haveToFixAggregate) {
-        const bool restore = _haveMeetAggregate;
+        bool restore = _haveMeetAggregate;
         _haveMeetAggregate = true;
         GuideVisitor::visitAggregate(o);
         _haveMeetAggregate = restore;
@@ -442,10 +459,11 @@ int PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o)
     if (_haveToFixAggregate) {
         Value *v = _refineAggregate2Record(o);
         if (v != nullptr) {
-            if (v != &o)
+            if (v != &o) {
                 v->acceptVisitor(*this); // fix the new Record
-            else
+            } else {
                 GuideVisitor::visitAggregate(o); // fix only Aggregate children
+            }
         }
     }
     if (!_haveMeetAggregate) // is top aggregate
@@ -456,14 +474,14 @@ int PostParsingVisitor_step1::visitAggregate(hif::Aggregate &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitArray(hif::Array &o)
+auto PostParsingVisitor_step1::visitArray(hif::Array &o) -> int
 {
     GuideVisitor::visitArray(o);
 
     // All arrays of type bit are mapped to vectors.
     if (dynamic_cast<Bit *>(o.getType()) != nullptr) {
-        Bit *b        = static_cast<Bit *>(o.getType());
-        Bitvector *bv = new Bitvector();
+        Bit *b   = dynamic_cast<Bit *>(o.getType());
+        auto *bv = new Bitvector();
         bv->setSpan(o.setSpan(nullptr));
         bv->setSigned(o.isSigned());
         bv->setConstexpr(typeIsConstexpr(&o, _sem));
@@ -477,16 +495,16 @@ int PostParsingVisitor_step1::visitArray(hif::Array &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitBitvector(hif::Bitvector &o)
+auto PostParsingVisitor_step1::visitBitvector(hif::Bitvector &o) -> int
 {
     GuideVisitor::visitBitvector(o);
     // Set sign of logic vector depending on which header is included.
 
-    Contents *contP = hif::getNearestParent<Contents>(&o);
-    View *viewP     = hif::getNearestParent<View>(&o);
-    LibraryDef *ldP = hif::getNearestParent<LibraryDef>(&o);
-    System *sysP    = hif::getNearestParent<System>(&o);
-    bool isFixed    = false;
+    auto *contP  = hif::getNearestParent<Contents>(&o);
+    View *viewP  = hif::getNearestParent<View>(&o);
+    auto *ldP    = hif::getNearestParent<LibraryDef>(&o);
+    auto *sysP   = hif::getNearestParent<System>(&o);
+    bool isFixed = false;
     if (contP != nullptr && !isFixed) {
         isFixed = _setSignOfArray(o, contP->libraries);
     }
@@ -503,14 +521,14 @@ int PostParsingVisitor_step1::visitBitvector(hif::Bitvector &o)
     if (isFixed) {
         Type *t = nullptr;
         if (o.isSigned()) {
-            Signed *s = new Signed();
+            auto *s = new Signed();
             s->setSpan(o.setSpan(nullptr));
             s->setConstexpr(o.isConstexpr());
             s->setSourceFileName(o.getSourceFileName());
             s->setSourceLineNumber(o.getSourceLineNumber());
             t = s;
         } else {
-            Unsigned *s = new Unsigned();
+            auto *s = new Unsigned();
             s->setSpan(o.setSpan(nullptr));
             s->setConstexpr(o.isConstexpr());
             s->setSourceFileName(o.getSourceFileName());
@@ -525,7 +543,7 @@ int PostParsingVisitor_step1::visitBitvector(hif::Bitvector &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitSystem(System &o)
+auto PostParsingVisitor_step1::visitSystem(System &o) -> int
 {
     // Notes: during compiling VHDL (vcom) just looks for components of packages.
     // Compiled entities are associated with libraries and not packages.
@@ -551,13 +569,13 @@ int PostParsingVisitor_step1::visitSystem(System &o)
     for (BList<DesignUnit>::iterator i = o.designUnits.begin(); i != o.designUnits.end();) {
         DesignUnit *currentDu = (*i);
         View *view            = currentDu->views.front();
-        ViewReference *vr     = new ViewReference();
+        auto *vr              = new ViewReference();
         vr->setDesignUnit(currentDu->getName());
-        Variable *fake = new Variable();
+        auto *fake = new Variable();
         fake->setType(vr);
-        const bool isComponent = view->getContents() == nullptr;
+        bool isComponent = view->getContents() == nullptr;
         if (isComponent) {
-            Contents *contents_o = new Contents();
+            auto *contents_o = new Contents();
             contents_o->setName(view->getName());
             view->setContents(contents_o);
             view->setStandard(true);
@@ -585,12 +603,13 @@ int PostParsingVisitor_step1::visitSystem(System &o)
         if (libView == view || libView == nullptr) {
             // Could be a view declared in a package not used by its implementation.
             libView = nullptr;
-            for (DesignUnits::iterator j = dus.begin(); j != dus.end(); ++j) {
-                DesignUnit *du = *j;
-                if (du == *i)
+            for (auto *du : dus) {
+                if (du == *i) {
                     continue;
-                if (du->getName() != currentDu->getName())
+                }
+                if (du->getName() != currentDu->getName()) {
                     continue;
+                }
 
                 messageAssert(
                     libView == nullptr,
@@ -610,9 +629,10 @@ int PostParsingVisitor_step1::visitSystem(System &o)
         // moving the current du inside the library definition.
         libView->replace(hif::copy(view));
         delete libView;
-        DesignUnits::iterator dusEntry = dus.find(currentDu);
-        if (dusEntry != dus.end())
+        auto dusEntry = dus.find(currentDu);
+        if (dusEntry != dus.end()) {
             dus.erase(dusEntry);
+        }
         i = i.erase();
     }
 
@@ -627,63 +647,68 @@ int PostParsingVisitor_step1::visitSystem(System &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitEnumValue(hif::EnumValue &o)
+auto PostParsingVisitor_step1::visitEnumValue(hif::EnumValue &o) -> int
 {
     GuideVisitor::visitEnumValue(o);
 
-    if (o.getType() != nullptr)
+    if (o.getType() != nullptr) {
         return 0;
+    }
 
     Enum *e = dynamic_cast<Enum *>(o.getParent());
     if (e == nullptr) {
         messageError("Wrong enum value parent (1).", &o, _sem);
     }
 
-    TypeDef *td = dynamic_cast<TypeDef *>(e->getParent());
+    auto *td = dynamic_cast<TypeDef *>(e->getParent());
     if (td == nullptr || !td->isOpaque()) {
         messageError("Wrong enum value parent (2).", &o, _sem);
     }
 
-    TypeReference *tr = new TypeReference();
+    auto *tr = new TypeReference();
     tr->setName(td->getName());
     o.setType(tr);
 
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     GuideVisitor::visitEnumValue(o);
     secondVisit = restore;
 
     return 0;
 }
 
-int PostParsingVisitor_step1::visitExpression(Expression &o)
+auto PostParsingVisitor_step1::visitExpression(Expression &o) -> int
 {
     GuideVisitor::visitExpression(o);
 
     // fix the operators:
-    if (_replaceLogicalOperators(o, _sem))
+    if (_replaceLogicalOperators(o, _sem)) {
         return 0;
-    if (_replaceRelationalOperators(o, _sem))
+    }
+    if (_replaceRelationalOperators(o, _sem)) {
         return 0;
+    }
 
     return 0;
 }
 
-int PostParsingVisitor_step1::visitFieldReference(FieldReference &o)
+auto PostParsingVisitor_step1::visitFieldReference(FieldReference &o) -> int
 {
     GuideVisitor::visitFieldReference(o);
 
-    Identifier *prefix = dynamic_cast<Identifier *>(o.getPrefix());
+    auto *prefix = dynamic_cast<Identifier *>(o.getPrefix());
 
-    if (prefix == nullptr)
+    if (prefix == nullptr) {
         return 0;
+    }
 
     std::string prefixString = prefix->getName();
-    if (prefixString != "ieee")
+    if (prefixString != "ieee") {
         return 0;
+    }
 
     prefixString += std::string("_") + o.getName();
 
-    Instance *i = _factory.libraryInstance(prefixString.c_str(), false, true);
+    Instance *i = _factory.libraryInstance(prefixString, false, true);
     o.replace(i);
     delete &o;
 
@@ -692,21 +717,22 @@ int PostParsingVisitor_step1::visitFieldReference(FieldReference &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitLibraryDef(LibraryDef &o)
+auto PostParsingVisitor_step1::visitLibraryDef(LibraryDef &o) -> int
 {
     // Removing references of current library def into sub tree because they
     // are unuseful and can create a loop.
     hif::semantics::ReferencesSet list;
     hif::semantics::getReferences(&o, list, _sem, &o);
 
-    for (hif::semantics::ReferencesSet::iterator i = list.begin(); i != list.end(); ++i) {
-        Object *obj = *i;
-        if (!obj->isInBList())
+    for (auto *obj : list) {
+        if (!obj->isInBList()) {
             continue;
-        if (dynamic_cast<Library *>(obj) == nullptr)
+        }
+        if (dynamic_cast<Library *>(obj) == nullptr) {
             continue;
+        }
 
-        Library *lib = static_cast<Library *>(obj);
+        auto *lib = dynamic_cast<Library *>(obj);
         BList<Library>::iterator it(lib);
         it.erase();
     }
@@ -715,11 +741,11 @@ int PostParsingVisitor_step1::visitLibraryDef(LibraryDef &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitFunctionCall(FunctionCall &o)
+auto PostParsingVisitor_step1::visitFunctionCall(FunctionCall &o) -> int
 {
     GuideVisitor::visitFunctionCall(o);
     Value *ret         = _fixFunctionCall(&o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     if (&o == ret) {
         GuideVisitor::visitFunctionCall(o);
@@ -731,11 +757,12 @@ int PostParsingVisitor_step1::visitFunctionCall(FunctionCall &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitFunction(Function &o)
+auto PostParsingVisitor_step1::visitFunction(Function &o) -> int
 {
     // Break recursive calls
-    if (_currentSubs.find(&o) != _currentSubs.end())
+    if (_currentSubs.find(&o) != _currentSubs.end()) {
         return 0;
+    }
     _currentSubs.insert(&o);
 
     // Reimplementing visiting order to fix ranges with dir typedrange:
@@ -743,31 +770,35 @@ int PostParsingVisitor_step1::visitFunction(Function &o)
 
     visitList(o.templateParameters);
     visitList(o.parameters);
-    if (o.getStateTable())
+    if (o.getStateTable() != nullptr) {
         o.getStateTable()->acceptVisitor(*this);
-    if (o.getType())
+    }
+    if (o.getType() != nullptr) {
         o.getType()->acceptVisitor(*this);
+    }
 
     _currentSubs.erase(&o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitIdentifier(Identifier &o)
+auto PostParsingVisitor_step1::visitIdentifier(Identifier &o) -> int
 {
     GuideVisitor::visitIdentifier(o);
 
     // Special characters management:
     if (o.getName() == std::string("nul")) {
         Identifier::DeclarationType *decl = hif::semantics::getDeclaration(&o, _sem);
-        if (decl != nullptr)
+        if (decl != nullptr) {
             return 0;
+        }
         CharValue *c = _factory.charval('\0');
         o.replace(c);
         delete &o;
     } else if (o.getName() == std::string("lf")) {
         Identifier::DeclarationType *decl = hif::semantics::getDeclaration(&o, _sem);
-        if (decl != nullptr)
+        if (decl != nullptr) {
             return 0;
+        }
         CharValue *c = _factory.charval('\n');
         o.replace(c);
         delete &o;
@@ -776,12 +807,13 @@ int PostParsingVisitor_step1::visitIdentifier(Identifier &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitPointer(Pointer &o)
+auto PostParsingVisitor_step1::visitPointer(Pointer &o) -> int
 {
     GuideVisitor::visitPointer(o);
 
-    if (o.getType() != nullptr)
+    if (o.getType() != nullptr) {
         return 0;
+    }
 
     Cast *c = dynamic_cast<Cast *>(o.getParent());
     messageAssert(c != nullptr, "Unexpected pointer parent", &o, _sem);
@@ -794,11 +826,12 @@ int PostParsingVisitor_step1::visitPointer(Pointer &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitProcedure(Procedure &o)
+auto PostParsingVisitor_step1::visitProcedure(Procedure &o) -> int
 {
     // Break recursive calls
-    if (_currentSubs.find(&o) != _currentSubs.end())
+    if (_currentSubs.find(&o) != _currentSubs.end()) {
         return 0;
+    }
     _currentSubs.insert(&o);
 
     GuideVisitor::visitProcedure(o);
@@ -808,7 +841,7 @@ int PostParsingVisitor_step1::visitProcedure(Procedure &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitProcedureCall(hif::ProcedureCall &o)
+auto PostParsingVisitor_step1::visitProcedureCall(hif::ProcedureCall &o) -> int
 {
     GuideVisitor::visitProcedureCall(o);
 
@@ -823,7 +856,7 @@ int PostParsingVisitor_step1::visitProcedureCall(hif::ProcedureCall &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitRange(Range &o)
+auto PostParsingVisitor_step1::visitRange(Range &o) -> int
 {
     GuideVisitor::visitRange(o);
 
@@ -836,20 +869,21 @@ int PostParsingVisitor_step1::visitRange(Range &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitTypeReference(hif::TypeReference &o)
+auto PostParsingVisitor_step1::visitTypeReference(hif::TypeReference &o) -> int
 {
     GuideVisitor::visitTypeReference(o);
 
     TypeDef *td = dynamic_cast<TypeDef *>(hif::semantics::getDeclaration(&o, _sem));
-    if (td == nullptr)
+    if (td == nullptr) {
         return 0;
+    }
 
     _fixTemplateTypereferences(&o, td);
 
     return 0;
 }
 
-int PostParsingVisitor_step1::visitView(View &o)
+auto PostParsingVisitor_step1::visitView(View &o) -> int
 {
     _fixUselessLibraryInclusions(&o);
     _fixBlockStatements(&o);
@@ -859,7 +893,7 @@ int PostParsingVisitor_step1::visitView(View &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitViewReference(ViewReference &o)
+auto PostParsingVisitor_step1::visitViewReference(ViewReference &o) -> int
 {
     // Set the correct View name in all ViewReference:
     // In VHDL you can not specify the architecture name when there is only
@@ -880,171 +914,172 @@ int PostParsingVisitor_step1::visitViewReference(ViewReference &o)
     return 0;
 }
 
-int PostParsingVisitor_step1::visitBitValue(BitValue &o)
+auto PostParsingVisitor_step1::visitBitValue(BitValue &o) -> int
 {
     GuideVisitor::visitBitValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitBitvectorValue(BitvectorValue &o)
+auto PostParsingVisitor_step1::visitBitvectorValue(BitvectorValue &o) -> int
 {
     GuideVisitor::visitBitvectorValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitBoolValue(BoolValue &o)
+auto PostParsingVisitor_step1::visitBoolValue(BoolValue &o) -> int
 {
     GuideVisitor::visitBoolValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitCharValue(CharValue &o)
+auto PostParsingVisitor_step1::visitCharValue(CharValue &o) -> int
 {
     GuideVisitor::visitCharValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitIntValue(IntValue &o)
+auto PostParsingVisitor_step1::visitIntValue(IntValue &o) -> int
 {
     GuideVisitor::visitIntValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitRealValue(RealValue &o)
+auto PostParsingVisitor_step1::visitRealValue(RealValue &o) -> int
 {
     GuideVisitor::visitRealValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitStringValue(StringValue &o)
+auto PostParsingVisitor_step1::visitStringValue(StringValue &o) -> int
 {
     GuideVisitor::visitStringValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int PostParsingVisitor_step1::visitAlias(Alias &o)
+auto PostParsingVisitor_step1::visitAlias(Alias &o) -> int
 {
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitAlias(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitConst(Const &o)
+auto PostParsingVisitor_step1::visitConst(Const &o) -> int
 {
     GuideVisitor::visitConst(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitConst(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitField(Field &o)
+auto PostParsingVisitor_step1::visitField(Field &o) -> int
 {
     GuideVisitor::visitField(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitField(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitParameter(Parameter &o)
+auto PostParsingVisitor_step1::visitParameter(Parameter &o) -> int
 {
     GuideVisitor::visitParameter(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitParameter(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitPort(Port &o)
+auto PostParsingVisitor_step1::visitPort(Port &o) -> int
 {
     GuideVisitor::visitPort(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitPort(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitSignal(Signal &o)
+auto PostParsingVisitor_step1::visitSignal(Signal &o) -> int
 {
     GuideVisitor::visitSignal(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitSignal(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitVariable(Variable &o)
+auto PostParsingVisitor_step1::visitVariable(Variable &o) -> int
 {
     GuideVisitor::visitVariable(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitVariable(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitValueTP(ValueTP &o)
+auto PostParsingVisitor_step1::visitValueTP(ValueTP &o) -> int
 {
     GuideVisitor::visitValueTP(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitValueTP(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitAssign(Assign &o)
+auto PostParsingVisitor_step1::visitAssign(Assign &o) -> int
 {
     GuideVisitor::visitAssign(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitAssign(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitPortAssign(PortAssign &o)
+auto PostParsingVisitor_step1::visitPortAssign(PortAssign &o) -> int
 {
     GuideVisitor::visitPortAssign(o);
-    const bool restore = secondVisit;
+    bool restore = secondVisit;
     secondVisit        = true;
     GuideVisitor::visitPortAssign(o);
     secondVisit = restore;
     return 0;
 }
 
-int PostParsingVisitor_step1::visitParameterAssign(ParameterAssign &o)
+auto PostParsingVisitor_step1::visitParameterAssign(ParameterAssign &o) -> int
 {
     GuideVisitor::visitParameterAssign(o);
     return 0;
 }
 
-bool PostParsingVisitor_step1::fixCollectRanges()
+auto PostParsingVisitor_step1::fixCollectRanges() -> bool
 {
-    typedef std::set<Range *> RangeSet;
-    typedef std::map<TypeReference *, RangeSet> TrMap;
-    typedef std::map<RangeSet, TypeReferenceSet> PartitionMap;
+    using RangeSet     = std::set<Range *>;
+    using TrMap        = std::map<TypeReference *, RangeSet>;
+    using PartitionMap = std::map<RangeSet, TypeReferenceSet>;
+
     TrMap trMap;
 
     bool ret = false;
-    for (RangeMap::iterator i = _rangeMap.begin(); i != _rangeMap.end(); ++i) {
-        Range *range                   = (*i).first;
-        RangeRefs &refs                = (*i).second;
+    for (auto &i : _rangeMap) {
+        Range *range                   = i.first;
+        RangeRefs &refs                = i.second;
         //TypeDef * decl = refs.decl;
         TypeReferenceSet &uptoTyperefs = refs.uptoTyperefs;
         //TypeReferenceSet & downtoTyperefs = refs.downtoTyperefs;
@@ -1054,45 +1089,41 @@ bool PostParsingVisitor_step1::fixCollectRanges()
         if (uptos.empty()) {
             // nothing to do since typedef is already downto
             continue;
-        } else if (downtos.empty()) {
+        }
+        if (downtos.empty()) {
             // all upto: reverse range direction!
             range->setDirection(dir_upto);
             ret = true;
             continue;
-        } else {
-            // mixed case
-            ret = true;
-            // collecting for further fixes
-            for (TypeReferenceSet::iterator j = uptoTyperefs.begin(); j != uptoTyperefs.end(); ++j) {
-                TypeReference *tr = *j;
-                trMap[tr].insert(range);
-            }
+        } // mixed case
+        ret = true;
+        // collecting for further fixes
+        for (auto tr : uptoTyperefs) {
+            trMap[tr].insert(range);
         }
     }
 
     // Partitioning conlicting typerefs
     PartitionMap partitionMap;
-    for (TrMap::iterator i = trMap.begin(); i != trMap.end(); ++i) {
-        TypeReference *tr  = (*i).first;
-        RangeSet &rangeSet = (*i).second;
+    for (auto &i : trMap) {
+        TypeReference *tr  = i.first;
+        RangeSet &rangeSet = i.second;
         partitionMap[rangeSet].insert(tr);
     }
 
     // For all partitions, copy declaration and revert its ranges.
-    for (PartitionMap::iterator i = partitionMap.begin(); i != partitionMap.end(); ++i) {
-        const RangeSet &rangeSet   = (*i).first;
-        TypeReferenceSet &typerefs = (*i).second;
+    for (auto &i : partitionMap) {
+        const RangeSet &rangeSet   = i.first;
+        TypeReferenceSet &typerefs = i.second;
         assert(!rangeSet.empty());
         TypeDef *originalDecl = _rangeMap[*(rangeSet.begin())].decl;
 
         // Trick: to revert ranges, revert on original, copy, and then revert back original.
-        for (RangeSet::const_iterator j = rangeSet.begin(); j != rangeSet.end(); ++j) {
-            Range *range = *j;
+        for (auto *range : rangeSet) {
             range->setDirection(dir_upto);
         }
         TypeDef *newTypedef = hif::copy(originalDecl);
-        for (RangeSet::const_iterator j = rangeSet.begin(); j != rangeSet.end(); ++j) {
-            Range *range = *j;
+        for (auto *range : rangeSet) {
             range->setDirection(dir_downto);
         }
         newTypedef->setOpaque(false); // to assure type checking compatibility
@@ -1102,8 +1133,7 @@ bool PostParsingVisitor_step1::fixCollectRanges()
         std::string newName = NameTable::getInstance()->getFreshName(originalDecl->getName(), "_upto");
         newTypedef->setName(newName);
 
-        for (TypeReferenceSet::iterator j = typerefs.begin(); j != typerefs.end(); ++j) {
-            TypeReference *tr = *j;
+        for (auto *tr : typerefs) {
             tr->setName(newName);
         }
     }
@@ -1114,10 +1144,11 @@ bool PostParsingVisitor_step1::fixCollectRanges()
 void PostParsingVisitor_step1::_fixConstValue(ConstValue &o)
 {
     // Avoid double visit, just for optimization.
-    const bool hasType = (o.getType() != nullptr);
+    bool hasType = (o.getType() != nullptr);
     hif::manipulation::assureSyntacticType(&o, _sem);
-    if (o.getType() == nullptr || hasType)
+    if (o.getType() == nullptr || hasType) {
         return;
+    }
     o.getType()->acceptVisitor(*this);
 }
 
@@ -1139,10 +1170,10 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
     // Try to add it to the nearest scope.
     // Unfortunately there is no common parent for template holders,
     // thus we have to perform many casts...
-    TypeDef *parentTd      = hif::getNearestParent<TypeDef>(tr);
-    DataDeclaration *ddecl = hif::getNearestParent<DataDeclaration>(tr);
-    SubProgram *sub        = hif::getNearestParent<SubProgram>(tr);
-    View *view             = hif::getNearestParent<View>(tr);
+    auto *parentTd = hif::getNearestParent<TypeDef>(tr);
+    auto *ddecl    = hif::getNearestParent<DataDeclaration>(tr);
+    auto *sub      = hif::getNearestParent<SubProgram>(tr);
+    View *view     = hif::getNearestParent<View>(tr);
 
     // Since Parameter is child class of data declaration, we have to skip it to
     // get the subprogram template list
@@ -1158,13 +1189,13 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
     } else if (ddecl != nullptr) {
         templates                  = nullptr;
         // Ref design: vhdl/ips/mephisto_core
-        const bool isImplicitRange = tr->ranges.size() * 2 < decl->templateParameters.size();
+        bool isImplicitRange = tr->ranges.size() * 2 < decl->templateParameters.size();
         if (ddecl->getType() == tr && ddecl->getValue() != nullptr && isImplicitRange) {
             ddecl->getValue()->acceptVisitor(*this);
-            Range *r       = nullptr;
+            Range *r  = nullptr;
             // Ref design: vhdl/openCores/minimips
             //             vhdl/ips/mephisto_core
-            Aggregate *agg = dynamic_cast<Aggregate *>(ddecl->getValue());
+            auto *agg = dynamic_cast<Aggregate *>(ddecl->getValue());
             if (agg != nullptr) {
                 r               = new Range(0, agg->alts.size() - 1);
                 Range *declSpan = (hif::typeGetSpan(decl->getType(), _sem));
@@ -1191,7 +1222,7 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         messageError("Not found scope with template parameters of a typeref", tr, _sem);
     }
 
-    const BList<Range>::size_t dim = 2 * tr->ranges.size();
+    auto dim = 2 * tr->ranges.size();
 
     // Sanity check: if no new implicit templates can be added,
     // then the number of specified ranges must match the number of
@@ -1213,10 +1244,11 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
             }
         }
 
-        if (found)
+        if (found) {
             continue;
+        }
 
-        ValueTP *originalTp = dynamic_cast<ValueTP *>(*i);
+        auto *originalTp = dynamic_cast<ValueTP *>(*i);
         if (originalTp == nullptr) {
             // error?
             messageWarning("Unexpected template parameter kind for a typeref:", tr, _sem);
@@ -1224,15 +1256,15 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         }
 
         // creating and adding the new tp assign
-        Identifier *newTp = new Identifier();
+        auto *newTp = new Identifier();
         newTp->setName(hif::NameTable::getInstance()->getFreshName(originalTp->getName()));
 
-        ValueTPAssign *vtpa = new ValueTPAssign();
+        auto *vtpa = new ValueTPAssign();
         vtpa->setName(originalTp->getName());
         vtpa->setValue(newTp);
         tr->templateParameterAssigns.push_back(vtpa);
 
-        ValueTP *vtp = new ValueTP();
+        auto *vtp = new ValueTP();
         vtp->setName(newTp->getName());
         vtp->setType(hif::copy(originalTp->getType()));
         templates->push_back(vtp);
@@ -1248,13 +1280,13 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         std::string rName = (*j)->getName();
         ++j;
 
-        const bool invertedRange = (*i)->getDirection() == dir_upto;
+        bool invertedRange = (*i)->getDirection() == dir_upto;
 
-        ValueTPAssign *tpa_l = new ValueTPAssign();
+        auto *tpa_l = new ValueTPAssign();
         tpa_l->setName(lName);
         tpa_l->setValue(hif::copy((*i)->getLeftBound()));
 
-        ValueTPAssign *tpa_r = new ValueTPAssign();
+        auto *tpa_r = new ValueTPAssign();
         tpa_r->setName(rName);
         tpa_r->setValue(hif::copy((*i)->getRightBound()));
 
@@ -1267,9 +1299,9 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
         hif::HifUntypedQuery::Results list;
         hif::search(list, decl->getType(), q);
         messageAssert(list.size() == 1, "Unexpected number of references", decl->getType(), _sem);
-        Identifier *id = dynamic_cast<Identifier *>(list.front());
+        auto *id = dynamic_cast<Identifier *>(list.front());
         messageAssert(id != nullptr, "Unexpected case", list.front(), _sem);
-        Range *pRange = dynamic_cast<Range *>(id->getParent());
+        auto *pRange = dynamic_cast<Range *>(id->getParent());
         messageAssert(pRange != nullptr, "Unexpected parent", id->getParent(), _sem);
         _rangeMap[pRange].decl = decl;
         if (invertedRange) {
@@ -1284,11 +1316,12 @@ void PostParsingVisitor_step1::_fixTemplateTypereferences(hif::TypeReference *tr
     tr->ranges.clear();
 }
 
-bool PostParsingVisitor_step1::_setSignOfArray(Bitvector &o, BList<Library> &libraries)
+auto PostParsingVisitor_step1::_setSignOfArray(Bitvector &o, BList<Library> &libraries) -> bool
 {
     for (BList<Library>::iterator it = libraries.begin(); it != libraries.end(); ++it) {
-        if (!(*it)->isSystem())
+        if (!(*it)->isSystem()) {
             continue;
+        }
         if ((*it)->getName() == "ieee_std_logic_signed") {
             Library arith;
             arith.setName("ieee_std_logic_arith");
@@ -1300,7 +1333,8 @@ bool PostParsingVisitor_step1::_setSignOfArray(Bitvector &o, BList<Library> &lib
 
             o.setSigned(true);
             return true;
-        } else if ((*it)->getName() == "ieee_std_logic_unsigned") {
+        }
+        if ((*it)->getName() == "ieee_std_logic_unsigned") {
             Library arith;
             arith.setName("ieee_std_logic_arith");
             hif::manipulation::AddUniqueObjectOptions addOpt;
@@ -1316,7 +1350,7 @@ bool PostParsingVisitor_step1::_setSignOfArray(Bitvector &o, BList<Library> &lib
     return false;
 }
 
-Value *PostParsingVisitor_step1::_refineAggregate2Record(Aggregate &o)
+auto PostParsingVisitor_step1::_refineAggregate2Record(Aggregate &o) -> Value *
 {
     Type *t = hif::semantics::getOtherOperandType(&o, _sem);
     if (t == nullptr) {
@@ -1326,18 +1360,18 @@ Value *PostParsingVisitor_step1::_refineAggregate2Record(Aggregate &o)
 
     t = hif::semantics::getBaseType(t, false, _sem);
     if (dynamic_cast<Record *>(t) != nullptr) {
-        Record *rec = static_cast<Record *>(t);
+        auto *rec = dynamic_cast<Record *>(t);
         if (rec->fields.size() != o.alts.size() || o.getOthers() != nullptr) {
             messageError("Unable to convert aggregate to proper record type (1).", &o, _sem);
         }
 
-        RecordValue *recVal      = new RecordValue();
+        auto *recVal             = new RecordValue();
         BList<Field>::iterator j = rec->fields.begin();
         for (BList<AggregateAlt>::iterator i = o.alts.begin(); i != o.alts.end(); ++i, ++j) {
             if ((*i)->indices.size() != 1) {
                 messageError("Unable to convert aggregate to proper record type (2).", &o, _sem);
             }
-            RecordValueAlt *rva = new RecordValueAlt();
+            auto *rva = new RecordValueAlt();
             messageAssert(
                 !(*j)->getName().empty() && (*j)->getName() != NameTable::getInstance()->none(),
                 "Unexpected name not set", (*j), _sem);
@@ -1354,12 +1388,12 @@ Value *PostParsingVisitor_step1::_refineAggregate2Record(Aggregate &o)
     return &o;
 }
 
-bool PostParsingVisitor_step1::_isTypedRange(Range *r)
+auto PostParsingVisitor_step1::_isTypedRange(Range *r) -> bool
 {
     messageAssert(r != nullptr, "Unexpected NULl range", nullptr, _sem);
-    const bool isString    = dynamic_cast<String *>(r->getParent()) != nullptr;
-    const bool leftIsNull  = r->getLeftBound() == nullptr;
-    const bool rightIsNull = r->getRightBound() == nullptr;
+    bool isString    = dynamic_cast<String *>(r->getParent()) != nullptr;
+    bool leftIsNull  = r->getLeftBound() == nullptr;
+    bool rightIsNull = r->getRightBound() == nullptr;
 
     return (leftIsNull && rightIsNull) || (isString && (leftIsNull || rightIsNull));
 }
@@ -1367,13 +1401,13 @@ bool PostParsingVisitor_step1::_isTypedRange(Range *r)
 void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
 {
     if (o.getType() != nullptr) {
-        TypeReference *tref = dynamic_cast<TypeReference *>(o.getType());
+        auto *tref = dynamic_cast<TypeReference *>(o.getType());
         if (tref != nullptr) {
             Enum *e = dynamic_cast<Enum *>(hif::semantics::getDeclaration(tref, _sem));
             if (e != nullptr) {
                 // WTF?
-                unsigned int size = e->values.size();
-                Range *r          = new Range(size, 0);
+                auto size = e->values.size();
+                auto *r   = new Range(size, 0);
                 o.replace(r);
                 delete &o;
                 return;
@@ -1390,8 +1424,8 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
         }
 
         if (dynamic_cast<Int *>(o.getType()) != nullptr) {
-            TypeDef *td = hif::getNearestParent<TypeDef>(&o);
-            Int *ii     = static_cast<Int *>(o.getType());
+            auto *td = hif::getNearestParent<TypeDef>(&o);
+            Int *ii  = dynamic_cast<Int *>(o.getType());
 
             if (td == nullptr) {
                 messageError("Unsupported subtype indication for range (2).", &o, _sem);
@@ -1415,19 +1449,19 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
         return;
     }
 
-    String *stringParent = dynamic_cast<String *>(o.getParent());
-    const bool isString  = (stringParent != nullptr);
+    auto *stringParent  = dynamic_cast<String *>(o.getParent());
+    bool isString = (stringParent != nullptr);
 
     // Range with unsetted bounds
-    TypeDef *tdo       = hif::getNearestParent<TypeDef>(&o);
-    Function *fo       = hif::getNearestParent<Function>(&o);
-    Procedure *po      = hif::getNearestParent<Procedure>(&o);
-    Parameter *paramo  = hif::getNearestParent<Parameter>(&o);
-    Variable *var      = hif::getNearestParent<Variable>(&o);
-    Const *constant    = hif::getNearestParent<Const>(&o);
-    ValueTP *vtpo      = hif::getNearestParent<ValueTP>(&o);
-    TypeTPAssign *ttpa = hif::getNearestParent<TypeTPAssign>(&o);
-    Cast *co           = dynamic_cast<Cast *>(o.getParent() != nullptr ? o.getParent()->getParent() : nullptr);
+    auto *tdo      = hif::getNearestParent<TypeDef>(&o);
+    auto *fo       = hif::getNearestParent<Function>(&o);
+    auto *po       = hif::getNearestParent<Procedure>(&o);
+    auto *paramo   = hif::getNearestParent<Parameter>(&o);
+    auto *var      = hif::getNearestParent<Variable>(&o);
+    auto *constant = hif::getNearestParent<Const>(&o);
+    auto *vtpo     = hif::getNearestParent<ValueTP>(&o);
+    auto *ttpa     = hif::getNearestParent<TypeTPAssign>(&o);
+    Cast *co       = dynamic_cast<Cast *>(o.getParent() != nullptr ? o.getParent()->getParent() : nullptr);
 
     // add two parameters to the searched types, one for each bound
     if (co != nullptr) {
@@ -1471,7 +1505,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
             Type *type = hif::semantics::getSemanticType(vtpo->getValue(), _sem);
             messageAssert(type != nullptr, "Cannot type init val", vtpo, _sem);
             if (isString) {
-                String *typeString = dynamic_cast<String *>(type);
+                auto *typeString = dynamic_cast<String *>(type);
                 messageAssert(typeString != nullptr, "Unexpected case", type, _sem);
                 ro = hif::copy(typeString->getSpanInformation());
                 hif::manipulation::simplify(ro, _sem);
@@ -1504,7 +1538,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
         std::list<Return *> result;
         hif::search(result, fo, q);
 
-        for (std::list<Return *>::iterator i = result.begin(); i != result.end();) {
+        for (auto i = result.begin(); i != result.end();) {
             if (hif::getNearestParent<Function>(*i) != fo) {
                 i = result.erase(i);
             } else {
@@ -1534,7 +1568,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
         hif::manipulation::simplify(ro, _sem, sopt);
     } else if (ttpa != nullptr) {
         // support only copy constructor at the moment
-        FunctionCall *fcall = dynamic_cast<FunctionCall *>(ttpa->getParent());
+        auto *fcall = dynamic_cast<FunctionCall *>(ttpa->getParent());
         messageAssert(fcall != nullptr, "Unexpected typed range location", ttpa->getParent(), _sem);
         messageAssert(
             fcall->getName() == "new" && fcall->templateParameterAssigns.size() == 1 &&
@@ -1549,7 +1583,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
         messageAssert(type != nullptr, "Cannot type value", v, _sem);
 
         if (isString) {
-            String *typeString = dynamic_cast<String *>(type);
+            auto *typeString = dynamic_cast<String *>(type);
             messageAssert(typeString != nullptr, "Unexpected case", type, _sem);
             Range *ro = hif::copy(typeString->getSpanInformation());
             o.replace(ro);
@@ -1579,7 +1613,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
 
         messageAssert(initType != nullptr, "Cannot type variable initial value", var, _sem);
         if (isString) {
-            String *typeString = dynamic_cast<String *>(initType);
+            auto *typeString = dynamic_cast<String *>(initType);
             messageAssert(typeString != nullptr, "Unexpected case", initType, _sem);
             Range *ro = hif::copy(typeString->getSpanInformation());
             o.replace(ro);
@@ -1607,7 +1641,7 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
 
         messageAssert(initType != nullptr, "Cannot type constant initial value", constant, _sem);
         if (isString) {
-            String *typeString = dynamic_cast<String *>(initType);
+            auto *typeString = dynamic_cast<String *>(initType);
             messageAssert(typeString != nullptr, "Unexpected case", initType, _sem);
             Range *ro = hif::copy(typeString->getSpanInformation());
             o.replace(ro);
@@ -1625,39 +1659,44 @@ void PostParsingVisitor_step1::_fixRangeTypedrange(Range &o)
     }
 }
 
-bool PostParsingVisitor_step1::_isSingleBoundRange(Range &o)
+auto PostParsingVisitor_step1::_isSingleBoundRange(Range &o) -> bool
 {
-    if (o.getLeftBound() == nullptr)
+    if (o.getLeftBound() == nullptr) {
         return false;
-    FunctionCall *lb = dynamic_cast<FunctionCall *>(o.getLeftBound());
-    if (lb == nullptr)
+    }
+    auto *lb = dynamic_cast<FunctionCall *>(o.getLeftBound());
+    if (lb == nullptr) {
         return false;
-    if (!objectMatchName(lb, "range") && !objectMatchName(lb, "reverse_range"))
+    }
+    if (!objectMatchName(lb, "range") && !objectMatchName(lb, "reverse_range")) {
         return false;
+    }
 
     FunctionCall::DeclarationType *decl = hif::semantics::getDeclaration(lb, _sem);
     messageAssert((decl != nullptr), "Cannot find declaration of function call", lb, _sem);
 
     // avoiding unknown implementations...
-    LibraryDef *std = dynamic_cast<LibraryDef *>(decl->getParent());
-    if (std == nullptr)
+    auto *std = dynamic_cast<LibraryDef *>(decl->getParent());
+    if (std == nullptr) {
         return false;
-    const bool isStd = (std->getName() == "standard");
-    if (!isStd)
+    }
+    bool isStd = (std->getName() == "standard");
+    if (!isStd) {
         return false;
+    }
 
     messageAssert(
-        ((lb->parameterAssigns.size() == 0 || lb->parameterAssigns.size() == 1) && o.getRightBound() == nullptr),
+        ((lb->parameterAssigns.empty() || lb->parameterAssigns.size() == 1) && o.getRightBound() == nullptr),
         "Bad parsing of VHDL attribute range / reverse_range", &o, _sem);
 
     return true;
 }
 
-Range *PostParsingVisitor_step1::_fixSingleBoundRange(Range &o)
+auto PostParsingVisitor_step1::_fixSingleBoundRange(Range &o) -> Range *
 {
-    FunctionCall *lb = dynamic_cast<FunctionCall *>(o.getLeftBound());
-    Value *p1        = lb->getInstance();
-    Value *p2        = nullptr;
+    auto *lb  = dynamic_cast<FunctionCall *>(o.getLeftBound());
+    Value *p1 = lb->getInstance();
+    Value *p2 = nullptr;
     if (lb->parameterAssigns.size() == 1) {
         p2 = lb->parameterAssigns.front()->getValue();
     }
@@ -1668,15 +1707,15 @@ Range *PostParsingVisitor_step1::_fixSingleBoundRange(Range &o)
     long long int n = 1; // Default.
     if (p2 != nullptr) {
         hif::manipulation::simplify(p2, _sem);
-        ConstValue *nC = dynamic_cast<ConstValue *>(p2);
+        auto *nC = dynamic_cast<ConstValue *>(p2);
         messageAssert(
             nC != nullptr,
             "Unsupported VHDL attribute RANGE/REVERSE_RANGE with "
             "unpredictable parameter N",
             lb, _sem);
 
-        Int *ivt     = _factory.integer();
-        IntValue *iv = dynamic_cast<IntValue *>(hif::manipulation::transformConstant(nC, ivt, _sem));
+        Int *ivt = _factory.integer();
+        auto *iv = dynamic_cast<IntValue *>(hif::manipulation::transformConstant(nC, ivt, _sem));
         delete ivt;
         messageAssert(
             iv != nullptr,
@@ -1693,7 +1732,7 @@ Range *PostParsingVisitor_step1::_fixSingleBoundRange(Range &o)
     Type *innerT = hif::typeGetNestedType(a, _sem, n - 1);
     Range *ret   = hif::copy(hif::typeGetSpan(innerT, _sem));
 
-    const bool doRevert = (objectMatchName(lb, "reverse_range"));
+    bool doRevert = (objectMatchName(lb, "reverse_range"));
     if (doRevert) {
         Value *tmp = ret->getLeftBound();
         ret->setLeftBound(ret->getRightBound());
@@ -1710,8 +1749,8 @@ void PostParsingVisitor_step1::_fixUselessLibraryInclusions(View *o)
 {
     // Scan the list of libraries to look for useless library inclusion
     // that refer to design units in the system
-    System *sys = hif::getNearestParent<System>(o);
-    bool erased;
+    auto *sys   = hif::getNearestParent<System>(o);
+    bool erased = false;
     for (BList<Library>::iterator i = o->libraries.begin(); i != o->libraries.end();) {
         erased       = false;
         Library *lib = *i;
@@ -1724,15 +1763,17 @@ void PostParsingVisitor_step1::_fixUselessLibraryInclusions(View *o)
                 break;
             }
         }
-        if (!erased)
+        if (!erased) {
             ++i;
+        }
     }
 }
 
 void PostParsingVisitor_step1::_fixBlockStatements(View *o)
 {
-    if (o->getContents() == nullptr)
+    if (o->getContents() == nullptr) {
         return;
+    }
 
     for (BList<Declaration>::iterator it(o->getContents()->declarations.begin());
          it != o->getContents()->declarations.end();) {
@@ -1743,8 +1784,8 @@ void PostParsingVisitor_step1::_fixBlockStatements(View *o)
         }
 
         // Restricting VHDL block-statement case
-        const bool emptyTP    = v->templateParameters.empty();
-        const bool emptyPorts = v->getEntity()->ports.empty();
+        bool emptyTP    = v->templateParameters.empty();
+        bool emptyPorts = v->getEntity()->ports.empty();
         messageAssert(emptyTP && emptyPorts, "Unsupported", v, _sem);
 
         // Recursion must be performed here, before GuideVisitor of View
@@ -1755,7 +1796,7 @@ void PostParsingVisitor_step1::_fixBlockStatements(View *o)
     }
 }
 
-Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
+auto PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o) -> Value *
 {
     if (o->checkProperty(RECOGNIZED_FCALL_PROPERTY)) {
         // It is certainly a function call.
@@ -1772,7 +1813,7 @@ Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
     if (o->getInstance() != nullptr) {
         Library *lib = resolveLibraryType(o->getInstance(), true);
         if (lib != nullptr) {
-            Instance *inst = new Instance();
+            auto *inst = new Instance();
             inst->setName(lib->getName());
             inst->setReferencedType(lib);
             delete o->setInstance(inst);
@@ -1783,9 +1824,9 @@ Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
 
     // //////////////////////////////////////////////////////////
     // it's a type ref?
-    TypeReference *typeref = new TypeReference();
+    auto *typeref = new TypeReference();
     typeref->setName(o->getName());
-    Instance *inst = dynamic_cast<Instance *>(o->getInstance());
+    auto *inst = dynamic_cast<Instance *>(o->getInstance());
     if (inst != nullptr) {
         typeref->setInstance(hif::copy(inst->getReferencedType()));
     }
@@ -1808,12 +1849,12 @@ Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
     // it's a member?
     Value *currentMember = nullptr;
     if (originalInst != nullptr) {
-        FieldReference *fr = new FieldReference();
+        auto *fr = new FieldReference();
         fr->setName(o->getName());
         fr->setPrefix(originalInst);
         currentMember = fr;
     } else {
-        Identifier *idf = new Identifier();
+        auto *idf = new Identifier();
         idf->setName(o->getName());
         currentMember = idf;
         delete originalInst;
@@ -1836,8 +1877,8 @@ Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
     // Fixing candidates declarations, since can contain bad stuff as typed ranges.
     std::list<FunctionCall::DeclarationType *> candidates;
     hif::semantics::getCandidates(candidates, o, _sem);
-    for (std::list<FunctionCall::DeclarationType *>::iterator i = candidates.begin(); i != candidates.end(); ++i) {
-        (*i)->acceptVisitor(*this);
+    for (auto &candidate : candidates) {
+        candidate->acceptVisitor(*this);
     }
 
     // Now ensuring correct declaration.
@@ -1853,10 +1894,10 @@ Value *PostParsingVisitor_step1::_fixFunctionCall(FunctionCall *o)
     return ret;
 }
 
-Value *PostParsingVisitor_step1::_fixFunctionCall2TypeRef(
+auto PostParsingVisitor_step1::_fixFunctionCall2TypeRef(
     FunctionCall *o,
     TypeReference *typeref,
-    TypeReference::DeclarationType *declTr)
+    TypeReference::DeclarationType *declTr) -> Value *
 {
     Value *ret = nullptr;
 
@@ -1869,10 +1910,10 @@ Value *PostParsingVisitor_step1::_fixFunctionCall2TypeRef(
 
     messageAssert(dynamic_cast<TypeDef *>(declTr) != nullptr, "Unexpected declaration", declTr, _sem);
 
-    TypeDef *td        = static_cast<TypeDef *>(declTr);
-    Value *first       = o->parameterAssigns.front()->getValue();
-    Identifier *valRef = dynamic_cast<Identifier *>(first);
-    Slice *slice       = dynamic_cast<Slice *>(first);
+    auto *td     = dynamic_cast<TypeDef *>(declTr);
+    Value *first = o->parameterAssigns.front()->getValue();
+    auto *valRef = dynamic_cast<Identifier *>(first);
+    auto *slice  = dynamic_cast<Slice *>(first);
     if (valRef != nullptr) {
         DataDeclaration *valDecl = hif::semantics::getDeclaration(valRef, _sem);
 
@@ -1906,7 +1947,7 @@ Value *PostParsingVisitor_step1::_fixFunctionCall2TypeRef(
         _factory.codeInfo(co, o->getCodeInfo());
         ret = co;
     } else {
-        messageAssert(o->parameterAssigns.size() == 1u, "Unexpected size inside typeref", o, _sem);
+        messageAssert(o->parameterAssigns.size() == 1U, "Unexpected size inside typeref", o, _sem);
 
         Type *t = hif::semantics::getSemanticType(first, _sem);
         if (t == nullptr) {
@@ -1935,30 +1976,31 @@ Value *PostParsingVisitor_step1::_fixFunctionCall2TypeRef(
     return ret;
 }
 
-Value *PostParsingVisitor_step1::_fixFunctionCall2MemberOrSlice(
+auto PostParsingVisitor_step1::_fixFunctionCall2MemberOrSlice(
     FunctionCall *o,
     Value *currentMember,
-    Declaration * /*memDecl*/)
+    Declaration * /*memDecl*/) -> Value *
 {
     for (BList<ParameterAssign>::iterator i = o->parameterAssigns.begin(); i != o->parameterAssigns.end(); ++i) {
         ParameterAssign *pa = *i;
         Value *val          = pa->setValue(nullptr);
         if (dynamic_cast<Range *>(val) != nullptr) {
-            Range *r = static_cast<Range *>(val);
-            Slice *s = new Slice();
+            auto *r = dynamic_cast<Range *>(val);
+            auto *s = new Slice();
             s->setSpan(r);
             s->setPrefix(currentMember);
             currentMember = s;
             continue;
-        } else if (dynamic_cast<Identifier *>(val) != nullptr) {
-            Identifier *id = static_cast<Identifier *>(val);
+        }
+        if (dynamic_cast<Identifier *>(val) != nullptr) {
+            auto *id = dynamic_cast<Identifier *>(val);
             // can be an identifier referred to a typedef
             TypeReference tr;
             tr.setName(id->getName());
 
             hif::semantics::DeclarationOptions dopt;
-            dopt.location   = o;
-            TypeDef *trDecl = dynamic_cast<TypeDef *>(hif::semantics::getDeclaration(&tr, _sem, dopt));
+            dopt.location = o;
+            auto *trDecl  = dynamic_cast<TypeDef *>(hif::semantics::getDeclaration(&tr, _sem, dopt));
 
             if (trDecl != nullptr) {
                 // It is a slice
@@ -1970,7 +2012,7 @@ Value *PostParsingVisitor_step1::_fixFunctionCall2MemberOrSlice(
                 } else {
                     r = hif::copy(hif::typeGetSpan(inst->getType(), _sem));
                 }
-                Slice *s = new Slice();
+                auto *s = new Slice();
                 s->setSpan(r);
                 s->setPrefix(currentMember);
                 currentMember = s;
@@ -1978,7 +2020,7 @@ Value *PostParsingVisitor_step1::_fixFunctionCall2MemberOrSlice(
             }
         }
 
-        Member *m = new Member();
+        auto *m = new Member();
         m->setIndex(val);
         m->setPrefix(currentMember);
         currentMember = m;

@@ -1,6 +1,7 @@
 /// @file PostParsingVisitor_step2.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -33,10 +34,10 @@ using namespace hif;
 namespace
 { // anon namespace
 
-typedef std::set<PortAssign *> Partials;
-typedef std::map<std::string, Partials> PartialNames;
+using Partials     = std::set<PortAssign *>;
+using PartialNames = std::map<std::string, Partials>;
 
-std::string _getOverloadedFunctionName(Operator oper)
+auto _getOverloadedFunctionName(Operator oper) -> std::string
 {
     std::string fname("__vhdl_op_");
 
@@ -132,29 +133,29 @@ std::string _getOverloadedFunctionName(Operator oper)
 class PostParsingVisitor_step2 : public hif::GuideVisitor
 {
 public:
-    typedef std::set<SubProgram *> Operators;
+    using Operators = std::set<SubProgram *>;
 
     PostParsingVisitor_step2(hif::semantics::ILanguageSemantics *sem);
-    virtual ~PostParsingVisitor_step2();
+    ~PostParsingVisitor_step2() override;
 
-    virtual int visitAggregate(hif::Aggregate &o);
-    virtual int visitBitvectorValue(hif::BitvectorValue &o);
-    virtual int visitCast(hif::Cast &o);
-    virtual int visitExpression(hif::Expression &o);
-    virtual int visitFor(hif::For &o);
-    virtual int visitForGenerate(hif::ForGenerate &o);
-    virtual int visitFunctionCall(hif::FunctionCall &o);
-    virtual int visitInstance(hif::Instance &o);     // previsit fix
-    virtual int visitLibraryDef(hif::LibraryDef &o); // previsit fix
-    virtual int visitProcedureCall(hif::ProcedureCall &o);
-    virtual int visitSlice(hif::Slice &o);
-    virtual int visitStateTable(StateTable &o);
-    virtual int visitSwitch(hif::Switch &o);
-    virtual int visitSystem(hif::System &o); // previsit fix
+    auto visitAggregate(hif::Aggregate &o) -> int override;
+    auto visitBitvectorValue(hif::BitvectorValue &o) -> int override;
+    auto visitCast(hif::Cast &o) -> int override;
+    auto visitExpression(hif::Expression &o) -> int override;
+    auto visitFor(hif::For &o) -> int override;
+    auto visitForGenerate(hif::ForGenerate &o) -> int override;
+    auto visitFunctionCall(hif::FunctionCall &o) -> int override;
+    auto visitInstance(hif::Instance &o) -> int override;     // previsit fix
+    auto visitLibraryDef(hif::LibraryDef &o) -> int override; // previsit fix
+    auto visitProcedureCall(hif::ProcedureCall &o) -> int override;
+    auto visitSlice(hif::Slice &o) -> int override;
+    auto visitStateTable(StateTable &o) -> int override;
+    auto visitSwitch(hif::Switch &o) -> int override;
+    auto visitSystem(hif::System &o) -> int override; // previsit fix
 
 private:
-    PostParsingVisitor_step2 &operator=(const PostParsingVisitor_step2 &o);
-    PostParsingVisitor_step2(const PostParsingVisitor_step2 &o);
+    auto operator=(const PostParsingVisitor_step2 &o) -> PostParsingVisitor_step2 & = delete;
+    PostParsingVisitor_step2(const PostParsingVisitor_step2 &o)                     = delete;
 
     hif::semantics::ILanguageSemantics *_sem;
     hif::HifFactory _factory;
@@ -211,10 +212,11 @@ private:
     /// Avoiding overflows.
     ///
     /// @{
-    hif::Value *_manageLoopIndex(hif::Value *condition);
+    auto _manageLoopIndex(hif::Value *condition) -> hif::Value *;
     template <typename T> void _manageForIndex(T &o);
 
-    hif::Value *_transformRangeToExpression(hif::BList<hif::DataDeclaration> &initDeclarations, hif::Value *condition);
+    auto _transformRangeToExpression(hif::BList<hif::DataDeclaration> &initDeclarations, hif::Value *condition)
+        -> hif::Value *;
     void _manageForRange(hif::For &o);
     void _manageForGenerateRange(hif::ForGenerate &o);
     /// @}
@@ -226,8 +228,8 @@ private:
     /// @{
     /// @brief Transforms overloaded operators to relative function calls.
     /// Replaces directly the expression into the tree.
-    bool _fixOverloadedOperators(hif::Expression &o);
-    bool _isOverloadable(const hif::Operator op, Type *t1, Type *t2);
+    auto _fixOverloadedOperators(hif::Expression &o) -> bool;
+    static auto _isOverloadable(hif::Operator op, Type *t1, Type *t2) -> bool;
     void _addStandardOperatorOverloads(LibraryDef *o);
     void _removeStandardOperatorOverloads();
     void _parseOperator(
@@ -238,33 +240,33 @@ private:
         const std::string &param3 = std::string());
     void _makeParam(Function *sub, const std::string &pos, const std::string &type);
     void _makeReturnType(Function *sub, const std::string &type);
-    Type *_makeType(Function *sub, const std::string &type, const std::string &pos);
+    auto _makeType(Function *sub, const std::string &type, const std::string &pos) -> Type *;
 
     /// @}
 
     /// @name Cast-related fixes.
     /// @{
     void _manageCast(Cast &o);
-    Type *_getCastedType(Cast &o);
+    auto _getCastedType(Cast &o) -> Type *;
     /// @}
 
     /// @name Instance-related fixes.
     /// @{
     /// Compose a concat operation composing partial bindings of each PortAssign
-    bool _fixPartialBindings(Instance *inst);
+    auto _fixPartialBindings(Instance *inst) -> bool;
 
     /// Create a new PortAssign composing partial bindings related to one Port
     void _fixPortPartialBindings(Partials &partials);
-    Value *_getPartial(Value *index, Value *min, hif::Trash &trash, const bool hasTemplates);
-    Range *_getPartial(Range *index, Value *min, hif::Trash &trash, const bool hasTemplates);
+    auto _getPartial(Value *index, Value *min, hif::Trash &trash, bool hasTemplates) -> Value *;
+    auto _getPartial(Range *index, Value *min, hif::Trash &trash, bool hasTemplates) -> Range *;
 
     /// @}
 
     /// @name Attributes fix related methods
     /// @{
-    bool _fixAttributesDimension(FunctionCall *o);
-    bool _simplifyAttributes(FunctionCall *o);
-    Type *_checkTypeInstance(Object *o);
+    auto _fixAttributesDimension(FunctionCall *o) -> bool;
+    auto _simplifyAttributes(FunctionCall *o) -> bool;
+    auto _checkTypeInstance(Object *o) -> Type *;
     /// @}
 };
 
@@ -278,14 +280,15 @@ PostParsingVisitor_step2::PostParsingVisitor_step2(hif::semantics::ILanguageSema
 
 PostParsingVisitor_step2::~PostParsingVisitor_step2() { _removeStandardOperatorOverloads(); }
 
-int PostParsingVisitor_step2::visitLibraryDef(LibraryDef &o)
+auto PostParsingVisitor_step2::visitLibraryDef(LibraryDef &o) -> int
 {
-    System *sys = dynamic_cast<System *>(o.getParent());
+    auto *sys = dynamic_cast<System *>(o.getParent());
     messageAssert(sys != nullptr, "Cannot find system", &o, _sem);
     for (BList<Declaration>::iterator i = o.declarations.begin(); i != o.declarations.end(); ++i) {
-        DesignUnit *du = dynamic_cast<DesignUnit *>(*i);
-        if (du == nullptr)
+        auto *du = dynamic_cast<DesignUnit *>(*i);
+        if (du == nullptr) {
             continue;
+        }
         for (BList<DesignUnit>::iterator j = sys->designUnits.begin(); j != sys->designUnits.end(); ++j) {
             if (du->getName() == (*j)->getName()) {
                 // Port references may be set to the wrong declarations, and they
@@ -303,17 +306,18 @@ int PostParsingVisitor_step2::visitLibraryDef(LibraryDef &o)
     return GuideVisitor::visitLibraryDef(o);
 }
 
-int PostParsingVisitor_step2::visitExpression(Expression &o)
+auto PostParsingVisitor_step2::visitExpression(Expression &o) -> int
 {
     GuideVisitor::visitExpression(o);
 
-    if (_fixOverloadedOperators(o))
+    if (_fixOverloadedOperators(o)) {
         return 0;
+    }
 
     return 0;
 }
 
-int PostParsingVisitor_step2::visitCast(Cast &o)
+auto PostParsingVisitor_step2::visitCast(Cast &o) -> int
 {
     GuideVisitor::visitCast(o);
 
@@ -322,7 +326,7 @@ int PostParsingVisitor_step2::visitCast(Cast &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitFor(For &o)
+auto PostParsingVisitor_step2::visitFor(For &o) -> int
 {
     //  _manageForDeclarations( o );
 
@@ -330,7 +334,7 @@ int PostParsingVisitor_step2::visitFor(For &o)
 
     // Check the presence of a range. If present, it has been left to check a possible
     // overflow. After the fix, it will be transformed into an expression.
-    Range *forRange = dynamic_cast<Range *>(o.getCondition());
+    auto *forRange = dynamic_cast<Range *>(o.getCondition());
     if (forRange != nullptr) {
         _manageForIndex(o);
         _manageForRange(o);
@@ -341,7 +345,7 @@ int PostParsingVisitor_step2::visitFor(For &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitForGenerate(ForGenerate &o)
+auto PostParsingVisitor_step2::visitForGenerate(ForGenerate &o) -> int
 {
     //  _manageForDeclarations( o );
 
@@ -349,7 +353,7 @@ int PostParsingVisitor_step2::visitForGenerate(ForGenerate &o)
 
     // Check the presence of a range. If present, it has been left to check a possible
     // overflow. After the fix, it will be transformed into an expression.
-    Range *forRange = dynamic_cast<Range *>(o.getCondition());
+    auto *forRange = dynamic_cast<Range *>(o.getCondition());
     if (forRange != nullptr) {
         _manageForIndex(o);
         _manageForGenerateRange(o);
@@ -360,7 +364,7 @@ int PostParsingVisitor_step2::visitForGenerate(ForGenerate &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitFunctionCall(hif::FunctionCall &o)
+auto PostParsingVisitor_step2::visitFunctionCall(hif::FunctionCall &o) -> int
 {
     GuideVisitor::visitFunctionCall(o);
 
@@ -380,22 +384,26 @@ int PostParsingVisitor_step2::visitFunctionCall(hif::FunctionCall &o)
     hif::manipulation::sortParameters(
         o.parameterAssigns, decl->parameters, true, hif::manipulation::SortMissingKind::NOTHING, _sem);
 
-    if (_fixAttributesDimension(&o))
+    if (_fixAttributesDimension(&o)) {
         return 0;
-    if (_simplifyAttributes(&o))
+    }
+    if (_simplifyAttributes(&o)) {
         return 0;
+    }
 
     return 0;
 }
 
-bool PostParsingVisitor_step2::_fixAttributesDimension(FunctionCall *o)
+auto PostParsingVisitor_step2::_fixAttributesDimension(FunctionCall *o) -> bool
 {
     std::string callName = o->getName();
 
-    if (o->getInstance() == nullptr)
+    if (o->getInstance() == nullptr) {
         return false;
-    if (!o->parameterAssigns.empty())
+    }
+    if (!o->parameterAssigns.empty()) {
         return false;
+    }
     if (callName != "left" && callName != "right" && callName != "low" && callName != "high") {
         return false;
     }
@@ -408,8 +416,9 @@ bool PostParsingVisitor_step2::_fixAttributesDimension(FunctionCall *o)
         typeInstance->replace(o);
         t = base;
     }
-    if (t == nullptr)
+    if (t == nullptr) {
         t = hif::semantics::getBaseType(hif::semantics::getSemanticType(o->getInstance(), _sem), false, _sem);
+    }
     messageAssert(t != nullptr, "Cannot type function call instance", o->getInstance(), _sem);
 
     if (dynamic_cast<Bitvector *>(t) == nullptr && dynamic_cast<Signed *>(t) == nullptr &&
@@ -427,12 +436,13 @@ bool PostParsingVisitor_step2::_fixAttributesDimension(FunctionCall *o)
     return true;
 }
 
-bool PostParsingVisitor_step2::_simplifyAttributes(FunctionCall *o)
+auto PostParsingVisitor_step2::_simplifyAttributes(FunctionCall *o) -> bool
 {
     std::string callName = o->getName();
 
-    if (o->getInstance() == nullptr)
+    if (o->getInstance() == nullptr) {
         return false;
+    }
     if (callName != "left" && callName != "right" && callName != "low" && callName != "high") {
         return false;
     }
@@ -457,14 +467,15 @@ bool PostParsingVisitor_step2::_simplifyAttributes(FunctionCall *o)
     if (hif::semantics::isVectorType(baseType, _sem) || dynamic_cast<Array *>(baseType) != nullptr) {
         span = hif::typeGetSpan(baseType, _sem);
     } else {
-        TypeReference *tr = dynamic_cast<TypeReference *>(actualType);
+        auto *tr = dynamic_cast<TypeReference *>(actualType);
         messageAssert(tr != nullptr, "Expected type reference", actualType, _sem);
         TypeDef *td = dynamic_cast<TypeDef *>(hif::semantics::getDeclaration(tr, _sem));
         messageAssert(td != nullptr, "Declaration not found", tr, _sem);
-        if (td->getRange() != nullptr)
+        if (td->getRange() != nullptr) {
             span = td->getRange();
-        else
+        } else {
             span = hif::typeGetSpan(baseType, _sem);
+        }
     }
 
     messageAssert(span != nullptr, "Cannot find span", baseType, _sem);
@@ -494,24 +505,26 @@ bool PostParsingVisitor_step2::_simplifyAttributes(FunctionCall *o)
     return true;
 }
 
-Type *PostParsingVisitor_step2::_checkTypeInstance(Object *o)
+auto PostParsingVisitor_step2::_checkTypeInstance(Object *o) -> Type *
 {
     // Checking special instances.
     // E.g.: a'left: a can be a value or a type.
     // Parser matches both as Identifiers.
-    Identifier *id = dynamic_cast<Identifier *>(o);
-    if (id == nullptr)
+    auto *id = dynamic_cast<Identifier *>(o);
+    if (id == nullptr) {
         return nullptr;
+    }
     Declaration *decl = hif::semantics::getDeclaration(id, _sem);
-    if (decl != nullptr)
+    if (decl != nullptr) {
         return nullptr;
+    }
 
     Type *t = VhdlParser::resolveType(id->getName(), nullptr, nullptr, _sem, true);
     messageAssert(t != nullptr, "Unable to check the instance.", o, _sem);
     return t;
 }
 
-int PostParsingVisitor_step2::visitInstance(Instance &o)
+auto PostParsingVisitor_step2::visitInstance(Instance &o) -> int
 {
     _fixPartialBindings(&o);
 
@@ -519,16 +532,18 @@ int PostParsingVisitor_step2::visitInstance(Instance &o)
         if ((*it)->getValue() == nullptr) {
             // it is an open portassign. Remove it!
             it = it.erase();
-        } else
+        } else {
             ++it;
+        }
     }
 
     // Sorting port and template parameters.
     messageDebugAssert(o.getReferencedType() != nullptr, "Unexpected nullptr referenced type", &o, _sem);
-    ViewReference *vref = dynamic_cast<ViewReference *>(o.getReferencedType());
+    auto *vref = dynamic_cast<ViewReference *>(o.getReferencedType());
 
-    if (vref == nullptr)
+    if (vref == nullptr) {
         return 0;
+    }
 
     View *vr = hif::semantics::getDeclaration(vref, _sem);
     messageAssert(vr != nullptr, "Not found declaration of view reference.", vref, _sem);
@@ -543,7 +558,7 @@ int PostParsingVisitor_step2::visitInstance(Instance &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitProcedureCall(hif::ProcedureCall &o)
+auto PostParsingVisitor_step2::visitProcedureCall(hif::ProcedureCall &o) -> int
 {
     GuideVisitor::visitProcedureCall(o);
 
@@ -564,12 +579,13 @@ int PostParsingVisitor_step2::visitProcedureCall(hif::ProcedureCall &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitAggregate(Aggregate &o)
+auto PostParsingVisitor_step2::visitAggregate(Aggregate &o) -> int
 {
     GuideVisitor::visitAggregate(o);
 
-    if (!o.checkProperty(AGGREGREGATE_INIDICES_PROPERTY))
+    if (!o.checkProperty(AGGREGREGATE_INIDICES_PROPERTY)) {
         return 0;
+    }
     o.removeProperty(AGGREGREGATE_INIDICES_PROPERTY);
 
     // ref design vhdl/openCores/corproc
@@ -581,9 +597,9 @@ int PostParsingVisitor_step2::visitAggregate(Aggregate &o)
     messageAssert(span != nullptr, "Span not found", aggType, _sem);
     const RangeDirection dir = span->getDirection();
 
-    const BList<Object>::size_t size = o.alts.size();
-    BList<Object>::size_t pos        = 0;
-    Value *min                       = hif::rangeGetMinBound(span);
+    auto size       = o.alts.size();
+    std::size_t pos = 0;
+    Value *min      = hif::rangeGetMinBound(span);
     for (BList<AggregateAlt>::iterator it = o.alts.begin(); it != o.alts.end(); ++it) {
         AggregateAlt *alt = *it;
         alt->indices.clear();
@@ -605,7 +621,7 @@ int PostParsingVisitor_step2::visitAggregate(Aggregate &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitBitvectorValue(hif::BitvectorValue &o)
+auto PostParsingVisitor_step2::visitBitvectorValue(hif::BitvectorValue &o) -> int
 {
     GuideVisitor::visitBitvectorValue(o);
 
@@ -628,7 +644,7 @@ int PostParsingVisitor_step2::visitBitvectorValue(hif::BitvectorValue &o)
     //messageAssert(t != nullptr, "Unable to calculate BitvectorValue type", &o, _sem);
     //messageAssert(hif::semantics::isVectorType(t, _sem), "Expected vector type", t, _sem);
     if (dynamic_cast<String *>(t) != nullptr) {
-        StringValue *strval = new StringValue();
+        auto *strval = new StringValue();
         strval->setType(_sem->getTypeForConstant(strval));
         strval->setValue(o.getValue());
         o.replace(strval);
@@ -652,7 +668,7 @@ int PostParsingVisitor_step2::visitBitvectorValue(hif::BitvectorValue &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitSlice(Slice &o)
+auto PostParsingVisitor_step2::visitSlice(Slice &o) -> int
 {
     GuideVisitor::visitSlice(o);
 
@@ -660,8 +676,9 @@ int PostParsingVisitor_step2::visitSlice(Slice &o)
     messageAssert(t != nullptr, "Cannot type slice prefix", &o, _sem);
 
     Range *span = hif::typeGetSpan(t, _sem);
-    if (span == nullptr)
+    if (span == nullptr) {
         return 0;
+    }
     RangeDirection prefix_dir = span->getDirection();
     RangeDirection slice_dir  = o.getSpan()->getDirection();
     if (prefix_dir != slice_dir) {
@@ -677,50 +694,53 @@ int PostParsingVisitor_step2::visitSlice(Slice &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitStateTable(StateTable &o)
+auto PostParsingVisitor_step2::visitStateTable(StateTable &o) -> int
 {
     GuideVisitor::visitStateTable(o);
 
-    if (!o.checkProperty(HIF_CONCURRENT_ASSERTION))
+    if (!o.checkProperty(HIF_CONCURRENT_ASSERTION)) {
         return 0;
+    }
     o.removeProperty(HIF_CONCURRENT_ASSERTION);
 
-    ProcedureCall *assertion = dynamic_cast<ProcedureCall *>(o.states.front()->actions.front());
+    auto *assertion = dynamic_cast<ProcedureCall *>(o.states.front()->actions.front());
     messageAssert(assertion != nullptr, "Expected assertion", o.states.front()->actions.front(), _sem);
 
     hif::semantics::SymbolList list;
     hif::semantics::collectSymbols(list, assertion->parameterAssigns.front()->getValue(), _sem);
     hif::manipulation::AddUniqueObjectOptions opt;
     opt.copyIfUnique = true;
-    for (hif::semantics::SymbolList::iterator i = list.begin(); i != list.end(); ++i) {
-        Object *symbol = *i;
-
-        Instance *libInst = dynamic_cast<Instance *>(symbol);
-        if (libInst != nullptr)
+    for (auto *symbol : list) {
+        auto *libInst = dynamic_cast<Instance *>(symbol);
+        if (libInst != nullptr) {
             continue;
+        }
 
         Declaration *decl = hif::semantics::getDeclaration(symbol, _sem);
         messageAssert(decl != nullptr, "Declaration not found", symbol, _sem);
 
-        Port *pdecl   = dynamic_cast<Port *>(decl);
-        Signal *sdecl = dynamic_cast<Signal *>(decl);
+        Port *pdecl = dynamic_cast<Port *>(decl);
+        auto *sdecl = dynamic_cast<Signal *>(decl);
 
-        if (pdecl == nullptr && sdecl == nullptr)
+        if (pdecl == nullptr && sdecl == nullptr) {
             continue;
+        }
 
-        Value *current = static_cast<Value *>(symbol);
+        auto *current  = dynamic_cast<Value *>(symbol);
         Object *parent = current->getParent();
         while (parent != nullptr) {
-            Slice *slice   = dynamic_cast<Slice *>(parent);
-            Member *member = dynamic_cast<Member *>(parent);
-            if (member != nullptr && member->getPrefix() != current)
+            auto *slice  = dynamic_cast<Slice *>(parent);
+            auto *member = dynamic_cast<Member *>(parent);
+            if (member != nullptr && member->getPrefix() != current) {
                 member = nullptr;
-            if (slice != nullptr)
+            }
+            if (slice != nullptr) {
                 current = slice;
-            else if (member != nullptr)
+            } else if (member != nullptr) {
                 current = member;
-            else
+            } else {
                 break;
+            }
             parent = current->getParent();
         }
 
@@ -730,7 +750,7 @@ int PostParsingVisitor_step2::visitStateTable(StateTable &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitSwitch(hif::Switch &o)
+auto PostParsingVisitor_step2::visitSwitch(hif::Switch &o) -> int
 {
     GuideVisitor::visitSwitch(o);
 
@@ -738,8 +758,9 @@ int PostParsingVisitor_step2::visitSwitch(hif::Switch &o)
     messageAssert(st != nullptr, "Cannot type switch value", o.getCondition(), _sem);
 
     Char *cc = dynamic_cast<Char *>(st);
-    if (cc == nullptr)
+    if (cc == nullptr) {
         return 0;
+    }
 
     // Maybe chars has been parser as bitval
     // Fixing constants into cases.
@@ -747,7 +768,7 @@ int PostParsingVisitor_step2::visitSwitch(hif::Switch &o)
         SwitchAlt *swa = *i;
         for (BList<Value>::iterator j = swa->conditions.begin(); j != swa->conditions.end(); ++j) {
             if (dynamic_cast<Range *>(*j) != nullptr) {
-                Range *r = static_cast<Range *>(*j);
+                auto *r = dynamic_cast<Range *>(*j);
 
                 Type *rb = hif::semantics::getSemanticType(r->getRightBound(), _sem);
                 messageAssert(rb != nullptr, "Cannot type rbound", r->getRightBound(), _sem);
@@ -789,7 +810,7 @@ int PostParsingVisitor_step2::visitSwitch(hif::Switch &o)
     return 0;
 }
 
-int PostParsingVisitor_step2::visitSystem(System &o)
+auto PostParsingVisitor_step2::visitSystem(System &o) -> int
 {
     for (BList<LibraryDef>::iterator i = o.libraryDefs.begin(); i != o.libraryDefs.end(); ++i) {
         LibraryDef *ld = *i;
@@ -809,20 +830,21 @@ void PostParsingVisitor_step2::_manageForDeclarations(For &o)
     // Init declarations are already ok.
     // All init values must have a correspondent declaration. Otherwise, create it.
     for (BList<Action>::iterator it = o.initValues.begin(); it != o.initValues.end(); ++it) {
-        Assign *as = dynamic_cast<Assign *>(*it);
+        auto *as = dynamic_cast<Assign *>(*it);
         // TODO: check other cases!
         messageAssert(as != nullptr, "Unexpected for init value", *it, _sem);
 
-        Identifier *id = dynamic_cast<Identifier *>(as->getLeftHandSide());
+        auto *id = dynamic_cast<Identifier *>(as->getLeftHandSide());
         messageAssert(id != nullptr, "Unexpected for init value assign", as, _sem);
 
         hif::semantics::DeclarationOptions dopt;
         dopt.location = &o;
-        Variable *ddo = dynamic_cast<Variable *>(hif::semantics::getDeclaration(as->getLeftHandSide(), _sem, dopt));
-        if (ddo != nullptr)
+        auto *ddo     = dynamic_cast<Variable *>(hif::semantics::getDeclaration(as->getLeftHandSide(), _sem, dopt));
+        if (ddo != nullptr) {
             continue;
+        }
 
-        StateTable *sto = hif::getNearestParent<StateTable>(&o);
+        auto *sto = hif::getNearestParent<StateTable>(&o);
         messageAssert(sto != nullptr, "Cannot find nearest state table", &o, _sem);
 
         // Add a fresh variable declaration of for index and replace all occurences
@@ -832,9 +854,9 @@ void PostParsingVisitor_step2::_manageForDeclarations(For &o)
     }
 }
 
-Value *PostParsingVisitor_step2::_manageLoopIndex(Value *condition)
+auto PostParsingVisitor_step2::_manageLoopIndex(Value *condition) -> Value *
 {
-    Range *forRange = dynamic_cast<Range *>(condition);
+    auto *forRange = dynamic_cast<Range *>(condition);
     messageAssert(forRange != nullptr, "Unexpected for/forGenerate condition.", condition, _sem);
 
     Value *v = hif::copy(forRange->getLeftBound());
@@ -853,14 +875,15 @@ template <typename T> void PostParsingVisitor_step2::_manageForIndex(T &o)
     hif::manipulation::simplify(&o, _sem);
 }
 
-Value *PostParsingVisitor_step2::_transformRangeToExpression(BList<DataDeclaration> &initDeclarations, Value *condition)
+auto PostParsingVisitor_step2::_transformRangeToExpression(BList<DataDeclaration> &initDeclarations, Value *condition)
+    -> Value *
 {
     hif::HifFactory f;
     f.setSemantics(_sem);
     messageAssert(initDeclarations.size() == 1, "Unexpected case", nullptr, _sem);
 
     DataDeclaration *indDecl = initDeclarations.back();
-    Range *forRange          = dynamic_cast<Range *>(condition);
+    auto *forRange           = dynamic_cast<Range *>(condition);
     messageAssert(forRange != nullptr, "Unexpected for condition", condition, _sem);
 
     Operator condOp = op_none;
@@ -876,7 +899,7 @@ Value *PostParsingVisitor_step2::_transformRangeToExpression(BList<DataDeclarati
     }
 
     if (dynamic_cast<ConstValue *>(loopEnd) != nullptr) {
-        ConstValue *cv = static_cast<ConstValue *>(loopEnd);
+        auto *cv = dynamic_cast<ConstValue *>(loopEnd);
         if (cv->getType() == nullptr) {
             cv->setType(_sem->getTypeForConstant(cv));
         }
@@ -884,7 +907,7 @@ Value *PostParsingVisitor_step2::_transformRangeToExpression(BList<DataDeclarati
 
     // TODO check: if forRange->getRightBound() contains references to ind, shall we change
     // these with references to ind_hif_support
-    Identifier *ind = new Identifier(indDecl->getName());
+    auto *ind = new Identifier(indDecl->getName());
 
     return new Expression(condOp, ind, f.cast(hif::copy(indDecl->getType()), loopEnd));
 }
@@ -901,7 +924,7 @@ void PostParsingVisitor_step2::_manageForGenerateRange(hif::ForGenerate &o)
     delete o.setCondition(newCond);
 }
 
-bool PostParsingVisitor_step2::_fixOverloadedOperators(Expression &o)
+auto PostParsingVisitor_step2::_fixOverloadedOperators(Expression &o) -> bool
 {
     // Establish operator's type basing on VHDL semantics
     hif::semantics::getSemanticType(o.getValue1(), _sem);
@@ -922,24 +945,25 @@ bool PostParsingVisitor_step2::_fixOverloadedOperators(Expression &o)
 
     // get the overloaded operator name.
     std::string fname = _getOverloadedFunctionName(o.getOperator());
-    if (fname == "") {
+    if (fname.empty()) {
         // if not present, try to type expression normally.
         Type *type = hif::semantics::getSemanticType(&o, _sem);
-        if (type == nullptr)
+        if (type == nullptr) {
             messageError("Not able to calculate type of expression", &o, _sem);
+        }
         return false;
     }
 
     // overloaded operator present, build a call to this function.
-    FunctionCall *fcall = new FunctionCall();
+    auto *fcall = new FunctionCall();
     fcall->setName(fname);
 
     // set parameters
-    ParameterAssign *pop1 = new ParameterAssign();
+    auto *pop1 = new ParameterAssign();
     pop1->setValue(hif::copy(o.getValue1()));
     fcall->parameterAssigns.push_back(pop1);
     if (o.getValue2() != nullptr) {
-        ParameterAssign *pop2 = new ParameterAssign();
+        auto *pop2 = new ParameterAssign();
         pop2->setValue(hif::copy(o.getValue2()));
         fcall->parameterAssigns.push_back(pop2);
     }
@@ -976,7 +1000,7 @@ bool PostParsingVisitor_step2::_fixOverloadedOperators(Expression &o)
         BList<ParameterAssign>::iterator i = fcall->parameterAssigns.begin();
         for (; i != fcall->parameterAssigns.end(); ++i, ++j) {
             ParameterAssign *pao_fcall = *i;
-            DataDeclaration *pao_decl  = dynamic_cast<DataDeclaration *>((*j));
+            auto *pao_decl             = dynamic_cast<DataDeclaration *>((*j));
 
             if (pao_fcall->getName() == NameTable::getInstance()->none()) {
                 pao_fcall->setName(pao_decl->getName());
@@ -996,25 +1020,22 @@ bool PostParsingVisitor_step2::_fixOverloadedOperators(Expression &o)
     return false;
 }
 
-bool PostParsingVisitor_step2::_isOverloadable(const Operator /*op*/, Type *t1, Type *t2)
+auto PostParsingVisitor_step2::_isOverloadable(const Operator /*op*/, Type *t1, Type *t2) -> bool
 {
     EqualsOptions opt;
     opt.checkOnlyTypes = true;
-    if ((t2 == nullptr || hif::equals(t1, t2, opt)) &&
-        (dynamic_cast<Int *>(t1) != nullptr || dynamic_cast<Bool *>(t1) != nullptr ||
-         dynamic_cast<Time *>(t1) != nullptr ||
-         (dynamic_cast<Bit *>(t1) != nullptr && !static_cast<Bit *>(t1)->isLogic()) ||
-         (dynamic_cast<Bitvector *>(t1) != nullptr && !static_cast<Bitvector *>(t1)->isLogic()))) {
-        return false;
-    }
-
-    return true;
+    return (t2 != nullptr && !hif::equals(t1, t2, opt)) ||
+           (dynamic_cast<Int *>(t1) == nullptr && dynamic_cast<Bool *>(t1) == nullptr &&
+            dynamic_cast<Time *>(t1) == nullptr &&
+            (dynamic_cast<Bit *>(t1) == nullptr || dynamic_cast<Bit *>(t1)->isLogic()) &&
+            (dynamic_cast<Bitvector *>(t1) == nullptr || dynamic_cast<Bitvector *>(t1)->isLogic()));
 }
 
 void PostParsingVisitor_step2::_addStandardOperatorOverloads(LibraryDef *o)
 {
-    if (!o->isStandard())
+    if (!o->isStandard()) {
         return;
+    }
 
     if (o->getName() == "ieee_numeric_std") {
         //_parseOperator(o, "abs", "signed", "signed");
@@ -1464,8 +1485,7 @@ void PostParsingVisitor_step2::_addStandardOperatorOverloads(LibraryDef *o)
 
 void PostParsingVisitor_step2::_removeStandardOperatorOverloads()
 {
-    for (Operators::iterator i = _operators.begin(); i != _operators.end(); ++i) {
-        SubProgram *sub = *i;
+    for (auto *sub : _operators) {
         sub->replace(nullptr);
         delete sub;
     }
@@ -1478,68 +1498,69 @@ void PostParsingVisitor_step2::_parseOperator(
     const std::string &param2,
     const std::string &param3)
 {
-    Function *sub = new Function();
+    auto *sub = new Function();
 
     // Operator name:
-    if (op == "abs")
+    if (op == "abs") {
         sub->setName("__vhdl_abs");
-    else if (op == "+")
+    } else if (op == "+") {
         sub->setName("__vhdl_op_plus");
-    else if (op == "*")
+    } else if (op == "*") {
         sub->setName("__vhdl_op_mult");
-    else if (op == "-")
+    } else if (op == "-") {
         sub->setName("__vhdl_op_minus");
-    else if (op == "/")
+    } else if (op == "/") {
         sub->setName("__vhdl_op_div");
-    else if (op == "**")
+    } else if (op == "**") {
         sub->setName("__vhdl_op_pow");
-    else if (op == "=")
+    } else if (op == "=") {
         sub->setName("__vhdl_op_eq");
-    else if (op == "/=")
+    } else if (op == "/=") {
         sub->setName("__vhdl_op_neq");
-    else if (op == ">")
+    } else if (op == ">") {
         sub->setName("__vhdl_op_gt");
-    else if (op == "<")
+    } else if (op == "<") {
         sub->setName("__vhdl_op_lt");
-    else if (op == ">=")
+    } else if (op == ">=") {
         sub->setName("__vhdl_op_ge");
-    else if (op == "<=")
+    } else if (op == "<=") {
         sub->setName("__vhdl_op_le");
-    else if (op == "mod")
+    } else if (op == "mod") {
         sub->setName("__vhdl_op_mod");
-    else if (op == "rem")
+    } else if (op == "rem") {
         sub->setName("__vhdl_op_rem");
-    else if (op == "sll")
+    } else if (op == "sll") {
         sub->setName("__vhdl_op_sll");
-    else if (op == "srl")
+    } else if (op == "srl") {
         sub->setName("__vhdl_op_srl");
-    else if (op == "sla")
+    } else if (op == "sla") {
         sub->setName("__vhdl_op_sla");
-    else if (op == "sra")
+    } else if (op == "sra") {
         sub->setName("__vhdl_op_sra");
-    else if (op == "rol")
+    } else if (op == "rol") {
         sub->setName("__vhdl_op_rol");
-    else if (op == "ror")
+    } else if (op == "ror") {
         sub->setName("__vhdl_op_ror");
-    else if (op == "not")
+    } else if (op == "not") {
         sub->setName("__vhdl_op_bnot");
-    else if (op == "and")
+    } else if (op == "and") {
         sub->setName("__vhdl_op_band");
-    else if (op == "or")
+    } else if (op == "or") {
         sub->setName("__vhdl_op_bor");
-    else if (op == "xor")
+    } else if (op == "xor") {
         sub->setName("__vhdl_op_bxor");
-    else if (op == "&")
+    } else if (op == "&") {
         sub->setName("__vhdl_op_concat");
-    // Listed, but not supported:
-    else if (op == "nor")
+        // Listed, but not supported:
+    } else if (op == "nor") {
         sub->setName("__vhdl_op_nor");
-    else if (op == "nand")
+    } else if (op == "nand") {
         sub->setName("__vhdl_op_nand");
-    else if (op == "xnor")
+    } else if (op == "xnor") {
         sub->setName("__vhdl_op_xnor");
-    else
+    } else {
         messageError("Unexpected operator: " + op, nullptr, nullptr);
+    }
 
     _makeParam(sub, "1", param1);
     if (param3.empty()) {
@@ -1555,7 +1576,7 @@ void PostParsingVisitor_step2::_parseOperator(
 
 void PostParsingVisitor_step2::_makeParam(Function *sub, const std::string &pos, const std::string &type)
 {
-    Parameter *p = new Parameter();
+    auto *p = new Parameter();
     p->setName("param" + pos);
     Type *t = _makeType(sub, type, pos);
     p->setType(t);
@@ -1568,7 +1589,7 @@ void PostParsingVisitor_step2::_makeReturnType(Function *sub, const std::string 
     sub->setType(t);
 }
 
-Type *PostParsingVisitor_step2::_makeType(Function *sub, const std::string &type, const std::string &pos)
+auto PostParsingVisitor_step2::_makeType(Function *sub, const std::string &type, const std::string &pos) -> Type *
 {
     Type *ret        = nullptr;
     bool addTemplate = false;
@@ -1640,7 +1661,7 @@ Type *PostParsingVisitor_step2::_makeType(Function *sub, const std::string &type
     return ret;
 }
 
-Type *PostParsingVisitor_step2::_getCastedType(Cast &o)
+auto PostParsingVisitor_step2::_getCastedType(Cast &o) -> Type *
 {
     Value *castOperand = o.getValue();
     if (castOperand == nullptr) {
@@ -1666,20 +1687,22 @@ Type *PostParsingVisitor_step2::_getCastedType(Cast &o)
 
 void PostParsingVisitor_step2::_manageCast(Cast &o)
 {
-    Type *bt      = hif::semantics::getBaseType(o.getType(), false, _sem);
-    Int *i        = dynamic_cast<Int *>(bt);
-    Signed *s     = dynamic_cast<Signed *>(o.getType());
-    Unsigned *us  = dynamic_cast<Unsigned *>(o.getType());
-    Array *arr    = dynamic_cast<Array *>(o.getType());
-    Bitvector *bv = dynamic_cast<Bitvector *>(o.getType());
+    Type *bt  = hif::semantics::getBaseType(o.getType(), false, _sem);
+    Int *i    = dynamic_cast<Int *>(bt);
+    auto *s   = dynamic_cast<Signed *>(o.getType());
+    auto *us  = dynamic_cast<Unsigned *>(o.getType());
+    auto *arr = dynamic_cast<Array *>(o.getType());
+    auto *bv  = dynamic_cast<Bitvector *>(o.getType());
 
-    if (i == nullptr && s == nullptr && us == nullptr && arr == nullptr && bv == nullptr)
+    if (i == nullptr && s == nullptr && us == nullptr && arr == nullptr && bv == nullptr) {
         return;
+    }
 
     if (i != nullptr) {
         Real *r = dynamic_cast<Real *>(hif::semantics::getSemanticType(o.getValue(), _sem));
-        if (r == nullptr)
+        if (r == nullptr) {
             return;
+        }
 
         // mapping cast into call to hif_mapRealToInt
         Value *is      = hif::semantics::spanGetSize(i->getSpan(), _sem);
@@ -1695,8 +1718,9 @@ void PostParsingVisitor_step2::_manageCast(Cast &o)
         return;
     }
 
-    if (hif::typeGetSpan(o.getType(), _sem) != nullptr)
+    if (hif::typeGetSpan(o.getType(), _sem) != nullptr) {
         return;
+    }
 
     Type *castType = _getCastedType(o);
     messageAssert(castType != nullptr, "Cannot get casted type", &o, _sem);
@@ -1714,7 +1738,7 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
     Type *paType      = hif::semantics::getSemanticType(first, _sem);
     messageAssert(paType != nullptr, "Cannot type description", first, _sem);
 
-    const bool hasTemplates = hif::typeDependsOnTemplates(paType, _sem);
+    bool hasTemplates = hif::typeDependsOnTemplates(paType, _sem);
     Value *paTypeMin        = nullptr;
     if (hasTemplates) {
         Range *paTypeRange = hif::typeGetSpan(paType, _sem);
@@ -1723,16 +1747,16 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
 
     // Collecting info
     hif::Trash trash;
-    for (Partials::iterator i = partials.begin(); i != partials.end(); ++i) {
-        PortAssign *pa = *i;
+    for (auto *pa : partials) {
         hif::analysis::IndexInfo index;
 
         Value *partial = pa->getPartialBind();
-        Range *r       = dynamic_cast<Range *>(partial);
-        if (r == nullptr)
+        auto *r        = dynamic_cast<Range *>(partial);
+        if (r == nullptr) {
             index.expression = _getPartial(partial, paTypeMin, trash, hasTemplates);
-        else
+        } else {
             index.slice = _getPartial(r, paTypeMin, trash, hasTemplates);
+        }
 
         indexMap[index] = pa->getValue();
     }
@@ -1752,10 +1776,10 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
 
     messageAssert(concat != nullptr, "Cannot resolve partial binding", first, _sem);
 
-    for (Partials::iterator i = partials.begin(); i != partials.end(); ++i) {
-        PortAssign *pa = *i;
-        if (pa == first)
+    for (auto *pa : partials) {
+        if (pa == first) {
             continue;
+        }
         pa->replace(nullptr);
         delete pa;
     }
@@ -1764,10 +1788,11 @@ void PostParsingVisitor_step2::_fixPortPartialBindings(Partials &partials)
     delete first->setValue(concat);
 }
 
-Value *PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &trash, const bool hasTemplates)
+auto PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &trash, bool hasTemplates) -> Value *
 {
-    if (!hasTemplates)
+    if (!hasTemplates) {
         return index;
+    }
 
     Value *simplifiedMin = hif::copy(min);
 
@@ -1783,11 +1808,12 @@ Value *PostParsingVisitor_step2::_getPartial(Value *index, Value *min, Trash &tr
     return ret;
 }
 
-Range *PostParsingVisitor_step2::_getPartial(Range *index, Value *min, Trash &trash, const bool hasTemplates)
+auto PostParsingVisitor_step2::_getPartial(Range *index, Value *min, Trash &trash, bool hasTemplates) -> Range *
 {
-    if (!hasTemplates)
+    if (!hasTemplates) {
         return index;
-    Range *ret = new Range();
+    }
+    auto *ret = new Range();
     ret->setDirection(index->getDirection());
     ret->setLeftBound(_getPartial(index->getLeftBound(), min, trash, hasTemplates));
     ret->setRightBound(_getPartial(index->getRightBound(), min, trash, hasTemplates));
@@ -1796,22 +1822,24 @@ Range *PostParsingVisitor_step2::_getPartial(Range *index, Value *min, Trash &tr
     return ret;
 }
 
-bool PostParsingVisitor_step2::_fixPartialBindings(Instance *inst)
+auto PostParsingVisitor_step2::_fixPartialBindings(Instance *inst) -> bool
 {
     PartialNames partialNames;
     for (BList<PortAssign>::iterator it(inst->portAssigns.begin()); it != inst->portAssigns.end(); ++it) {
         PortAssign *pass = *it;
-        if (pass->getPartialBind() == nullptr)
+        if (pass->getPartialBind() == nullptr) {
             continue;
+        }
         partialNames[pass->getName()].insert(pass);
     }
 
-    if (partialNames.empty())
+    if (partialNames.empty()) {
         return false;
+    }
 
     // Each name represents a set of partial bindings to fix.
-    for (PartialNames::iterator it(partialNames.begin()); it != partialNames.end(); ++it) {
-        _fixPortPartialBindings(it->second);
+    for (auto &partialName : partialNames) {
+        _fixPortPartialBindings(partialName.second);
     }
 
     return true;

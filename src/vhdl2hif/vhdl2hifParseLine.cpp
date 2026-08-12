@@ -1,6 +1,7 @@
 /// @file vhdl2hifParseLine.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -10,11 +11,11 @@ vhdl2hifParseLine::vhdl2hifParseLine(int argc, char *argv[])
     : CommandLineParser()
 {
     addToolInfos(
-        // toolName, copyright
+        // Tool name.
         "vhdl2hif",
-        "Copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR"
-        "This file is distributed under the BSD 2-Clause License."
-        "See LICENSE.md for details.",
+        // Copyright.
+        "Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group, Univeristy of Verona."
+        "This file is distributed under the BSD 2-Clause License.",
         // description
         "Generates HIF from a VHDL description.",
         // synopsys
@@ -34,9 +35,9 @@ vhdl2hifParseLine::vhdl2hifParseLine(int argc, char *argv[])
     addWriteParsing();
 
 #ifdef NDEBUG
-    const bool useSynthesisIntAvaiable = false;
+    bool useSynthesisIntAvaiable = false;
 #else
-    const bool useSynthesisIntAvaiable = true;
+    bool useSynthesisIntAvaiable = true;
 #endif
 
     addOption(
@@ -56,10 +57,12 @@ vhdl2hifParseLine::~vhdl2hifParseLine()
 
 void vhdl2hifParseLine::_validateArguments()
 {
-    if (!_options['h'].value.empty())
+    if (!_options['h'].value.empty()) {
         printHelp();
-    if (!_options['v'].value.empty())
+    }
+    if (!_options['v'].value.empty()) {
         printVersion();
+    }
 
     if (_files.empty()) {
         messageError(
@@ -69,37 +72,41 @@ void vhdl2hifParseLine::_validateArguments()
     }
 
     // Validate input file list
-    for (Files::iterator i = _files.begin(); i != _files.end(); ++i) {
-        std::string cleanFile = _cleanFileName(*i);
+    for (auto &_file : _files) {
+        std::string cleanFile = _cleanFileName(_file);
         if (!_checkVhdlFile(cleanFile) && !_checkPslFile(cleanFile)) {
-            messageError("Unrecognized input file:" + *i, nullptr, nullptr);
+            messageError("Unrecognized input file:" + _file, nullptr, nullptr);
         }
     }
 
     // Establish output file name
     std::string out = _options['o'].value;
-    if (out == "") {
+    if (out.empty()) {
         out = "out.hif.xml";
     } else {
         std::string::size_type ix = out.find(".hif.xml");
-        if (ix == std::string::npos)
+        if (ix == std::string::npos) {
             out += ".hif.xml";
+        }
     }
     _options['o'].value = out;
 }
 
-bool vhdl2hifParseLine::_checkVhdlFile(std::string inputFile)
+auto vhdl2hifParseLine::_checkVhdlFile(const std::string &inputFile) -> bool
 {
-    return (inputFile.find(".vhd") == std::string::npos && inputFile.find(".vhdl") == std::string::npos) ? false : true;
+    return inputFile.find(".vhd") != std::string::npos || inputFile.find(".vhdl") != std::string::npos;
 }
 
-bool vhdl2hifParseLine::_checkPslFile(std::string inputFile) { return inputFile.find(".psl") != std::string::npos; }
-
-std::string vhdl2hifParseLine::_cleanFileName(std::string inputString)
+auto vhdl2hifParseLine::_checkPslFile(const std::string &inputFile) -> bool
 {
-    size_t found = inputString.find_last_of("/");
+    return inputFile.find(".psl") != std::string::npos;
+}
+
+auto vhdl2hifParseLine::_cleanFileName(const std::string &inputString) -> std::string
+{
+    size_t found = inputString.find_last_of('/');
 
     return (found != std::string::npos) ? inputString.substr(found + 1) : inputString;
 }
 
-bool vhdl2hifParseLine::useInt32() { return getOption('i').empty(); }
+auto vhdl2hifParseLine::useInt32() -> bool { return getOption('i').empty(); }

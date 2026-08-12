@@ -1,6 +1,7 @@
 /// @file PostParsingVisitor_fixRanges.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -21,20 +22,20 @@ namespace /*anon*/
 class PostParsingVisitor_fixRanges : public hif::GuideVisitor
 {
 public:
-    PostParsingVisitor_fixRanges(const bool use_int_32, hif::semantics::VHDLSemantics *sem);
-    virtual ~PostParsingVisitor_fixRanges();
+    PostParsingVisitor_fixRanges(bool useInt32, hif::semantics::VHDLSemantics *sem);
+    ~PostParsingVisitor_fixRanges() override;
 
-    int visitFunctionCall(hif::FunctionCall &o);
-    int visitInt(hif::Int &o);
-    int visitLibrary(Library &o);
+    PostParsingVisitor_fixRanges(const PostParsingVisitor_fixRanges &o)                     = delete;
+    auto operator=(const PostParsingVisitor_fixRanges &o) -> PostParsingVisitor_fixRanges & = delete;
+
+    auto visitFunctionCall(hif::FunctionCall &o) -> int override;
+    auto visitInt(hif::Int &o) -> int override;
+    auto visitLibrary(Library &o) -> int override;
 
 private:
-    PostParsingVisitor_fixRanges(const PostParsingVisitor_fixRanges &o);
-    PostParsingVisitor_fixRanges &operator=(const PostParsingVisitor_fixRanges &o);
+    auto _fixTypeAttributeCall(FunctionCall *call, Type *t) -> Value *;
 
-    Value *_fixTypeAttributeCall(FunctionCall *call, Type *t);
-
-    const bool _useInt32;
+    bool _useInt32;
     hif::semantics::VHDLSemantics *_sem;
     hif::application_utils::WarningStringSet _librarySet;
     hif::Trash _trash;
@@ -63,7 +64,7 @@ PostParsingVisitor_fixRanges::~PostParsingVisitor_fixRanges()
     hif::application_utils::restoreLogHeader();
 }
 
-int PostParsingVisitor_fixRanges::visitFunctionCall(FunctionCall &o)
+auto PostParsingVisitor_fixRanges::visitFunctionCall(FunctionCall &o) -> int
 {
     GuideVisitor::visitFunctionCall(o);
 
@@ -73,15 +74,17 @@ int PostParsingVisitor_fixRanges::visitFunctionCall(FunctionCall &o)
     // fixed (not typed range or simila).
     // E.g. integer'low.
 
-    if (dynamic_cast<Identifier *>(o.getInstance()) == nullptr)
+    if (dynamic_cast<Identifier *>(o.getInstance()) == nullptr) {
         return 0;
+    }
 
-    Identifier *id = static_cast<Identifier *>(o.getInstance());
+    auto *id = dynamic_cast<Identifier *>(o.getInstance());
     std::string idString(id->getName());
     Type *idT = nullptr;
     idT       = VhdlParser::resolveType(idString, nullptr, nullptr, _sem, false);
-    if (idT == nullptr)
+    if (idT == nullptr) {
         return 0;
+    }
 
     // fix type
     // Must be in tree to be able to call the guide visit.
@@ -100,10 +103,10 @@ int PostParsingVisitor_fixRanges::visitFunctionCall(FunctionCall &o)
     return 0;
 }
 
-int PostParsingVisitor_fixRanges::visitInt(Int &o)
+auto PostParsingVisitor_fixRanges::visitInt(Int &o) -> int
 {
     GuideVisitor::visitInt(o);
-    const bool isSigned = o.isSigned();
+    bool isSigned = o.isSigned();
     o.setSigned(true);
     Range *range = o.getSpan();
     Range *span  = nullptr;
@@ -121,8 +124,9 @@ int PostParsingVisitor_fixRanges::visitInt(Int &o)
     }
     o.setSpan(span);
 
-    if (range == nullptr)
+    if (range == nullptr) {
         return 0;
+    }
     if (dynamic_cast<ConstValue *>(o.getParent()) != nullptr) {
         // Is the syntactic type of const value.
         delete range;
@@ -149,8 +153,8 @@ int PostParsingVisitor_fixRanges::visitInt(Int &o)
         return 0;
     }
 
-    DataDeclaration *pdecl = hif::getNearestParent<DataDeclaration>(&o);
-    TypeDef *tdecl         = hif::getNearestParent<TypeDef>(&o);
+    auto *pdecl = hif::getNearestParent<DataDeclaration>(&o);
+    auto *tdecl = hif::getNearestParent<TypeDef>(&o);
     if (pdecl != nullptr) {
         messageDebugAssert(pdecl->getRange() == nullptr, "Unexpected range already set", pdecl, _sem);
         pdecl->setRange(range);
@@ -165,7 +169,7 @@ int PostParsingVisitor_fixRanges::visitInt(Int &o)
 #ifndef NDEBUG
         if (tdecl->getRange() != nullptr) {
             hif::writeFile(clog, tdecl, false);
-            clog << endl;
+            clog << '\n';
             assert(false);
         }
 #endif
@@ -180,7 +184,7 @@ int PostParsingVisitor_fixRanges::visitInt(Int &o)
     return 0;
 }
 
-int PostParsingVisitor_fixRanges::visitLibrary(Library &o)
+auto PostParsingVisitor_fixRanges::visitLibrary(Library &o) -> int
 {
     // GuideVisitor::visitLibrary(o);
 
@@ -188,11 +192,13 @@ int PostParsingVisitor_fixRanges::visitLibrary(Library &o)
 
     if (o.getInstance() == nullptr) {
         // Special case: use work.module which is parsed as (LIBRARY module)
-        if (!o.isInBList())
+        if (!o.isInBList()) {
             return 0;
+        }
         LibraryDef *ld = hif::semantics::getDeclaration(&o, _sem);
-        if (ld != nullptr)
+        if (ld != nullptr) {
             return 0;
+        }
 
         ViewReference vr;
         vr.setDesignUnit(o.getName());
@@ -205,13 +211,13 @@ int PostParsingVisitor_fixRanges::visitLibrary(Library &o)
         return 0;
     }
 
-    Library *inst = dynamic_cast<Library *>(o.getInstance());
+    auto *inst = dynamic_cast<Library *>(o.getInstance());
     messageAssert(inst != nullptr, "Unexpected library instance", &o, _sem);
-    Library *lib = dynamic_cast<Library *>(inst->getInstance());
+    auto *lib = dynamic_cast<Library *>(inst->getInstance());
 
-    const bool instIEEE = inst->getName() == "ieee" || inst->getName() == "std";
+    bool instIEEE = inst->getName() == "ieee" || inst->getName() == "std";
 
-    const bool libIEEE = lib != nullptr && (lib->getName() == "ieee" || lib->getName() == "std");
+    bool libIEEE = lib != nullptr && (lib->getName() == "ieee" || lib->getName() == "std");
 
     if (!instIEEE && !libIEEE) {
         if (lib == nullptr) {
@@ -262,7 +268,7 @@ int PostParsingVisitor_fixRanges::visitLibrary(Library &o)
     return 0;
 }
 
-Value *PostParsingVisitor_fixRanges::_fixTypeAttributeCall(FunctionCall *call, Type *t)
+auto PostParsingVisitor_fixRanges::_fixTypeAttributeCall(FunctionCall *call, Type *t) -> Value *
 {
     std::string callName = call->getName();
 
@@ -305,11 +311,11 @@ Value *PostParsingVisitor_fixRanges::_fixTypeAttributeCall(FunctionCall *call, T
 // Utility methods
 // ///////////////////////////////////////////////////////////////////
 
-bool _hasSameSignagure(SubProgram *s1, SubProgram *s2)
+auto _hasSameSignagure(SubProgram *s1, SubProgram *s2) -> bool
 {
     StateTable *s1st = s1->setStateTable(nullptr);
     StateTable *s2st = s2->setStateTable(nullptr);
-    const bool ret   = hif::equals(s1, s2);
+    bool ret   = hif::equals(s1, s2);
     s1->setStateTable(s1st);
     s2->setStateTable(s2st);
     return ret;
@@ -320,29 +326,34 @@ void _fixSubProgramsDeclarations(System *o, hif::semantics::VHDLSemantics *sem)
     for (BList<LibraryDef>::iterator k = o->libraryDefs.begin(); k != o->libraryDefs.end(); ++k) {
         LibraryDef *l = *k;
         hif::Trash trash;
-        if (l->isStandard())
+        if (l->isStandard()) {
             continue;
+        }
         for (BList<Declaration>::iterator i = l->declarations.begin(); i != l->declarations.end(); ++i) {
-            Declaration *d    = *i;
-            SubProgram *sub_i = dynamic_cast<SubProgram *>(d);
-            if (sub_i == nullptr)
+            Declaration *d = *i;
+            auto *sub_i    = dynamic_cast<SubProgram *>(d);
+            if (sub_i == nullptr) {
                 continue;
+            }
             BList<Declaration>::iterator j = i;
             ++j;
             bool found        = false;
             SubProgram *sub_j = nullptr;
             for (; j != l->declarations.end(); ++j) {
                 sub_j = dynamic_cast<SubProgram *>(*j);
-                if (sub_j == nullptr)
+                if (sub_j == nullptr) {
                     continue;
-                if (!_hasSameSignagure(sub_i, sub_j))
+                }
+                if (!_hasSameSignagure(sub_i, sub_j)) {
                     continue;
+                }
                 found = true;
                 break;
             }
 
-            if (!found)
+            if (!found) {
                 continue;
+            }
 
             if ((sub_i->getStateTable() != nullptr && sub_j->getStateTable() != nullptr) ||
                 (sub_i->getStateTable() == nullptr && sub_j->getStateTable() == nullptr)) {

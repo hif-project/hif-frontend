@@ -2,7 +2,8 @@
     
 /// @file verilog.lex
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -97,7 +98,7 @@ std::string _getPath( const std::string & path )
 #endif
 
 // Needed by expand_macro() function
-extern Verilog2hifParseLine * _cLine;
+extern Verilog2hifParseLine * parse_line_ptr;
 extern VerilogParser * parserInstance;     // defined in verilogParser.cc
 
 
@@ -387,14 +388,14 @@ namespace
         buffers.back().line = yylineno;
         buffers.back().column = yycolumno;
         buffers.back().filename = yyfilename;
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Stop parsing: ")+buffers.back().filename).c_str());
         }
         yylineno = 1;
         yycolumno = 1;
         yyfilename = filename;
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Start parsing: ")+filename).c_str());
         }
@@ -419,7 +420,7 @@ namespace
     {
         if ( buffers.empty() ) return true;
         yy_delete_buffer( YY_CURRENT_BUFFER );
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("End parsing: ") + buffers.back().filename).c_str() );
         }
@@ -433,7 +434,7 @@ namespace
         yycolumno = buffers.back().column;
         yyfilename = buffers.back().filename;
         yyin = buffers.back().file;
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Restart parsing: ") + buffers.back().filename).c_str() );
         }
@@ -455,7 +456,7 @@ namespace
 
         m.value = hif::application_utils::hif_strdup( tmp.c_str() );
         m.name = macroname;
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Defined macro: ")+ m.name + " with value: " + m.value).c_str());
         }
@@ -490,14 +491,12 @@ namespace
                      + macroname).c_str());
 
             file = hif::application_utils::hif_fmemopen( const_cast<char*>(m),
-                                 static_cast<int>(strlen(m)), "r",
-                                 _getPath(_cLine->getOutputFile()).c_str() );
+                                 static_cast<int>(strlen(m)), "r");
         }
         else
         {
             file = hif::application_utils::hif_fmemopen( i->second.value,
-                                 static_cast<int>(strlen(i->second.value)), "r",
-                                 _getPath(_cLine->getOutputFile()).c_str() );
+                                 static_cast<int>(strlen(i->second.value)), "r");
         }
 
         // Like push_buffer:
@@ -509,7 +508,7 @@ namespace
 
         buffers.back().line = yylineno;
 
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Stop parsing: ")+buffers.back().filename).c_str());
             yymessage( (std::string("Start parsing: ")+macroname).c_str());
@@ -636,8 +635,7 @@ namespace
 
         // continue parsing
         FILE * file = hif::application_utils::hif_fmemopen( i->second.expanded_value,
-                                    static_cast<int>(strlen(i->second.expanded_value)), "r",
-                                    _getPath(_cLine->getOutputFile()).c_str() );
+                                    static_cast<int>(strlen(i->second.expanded_value)), "r");
 
         // Like push_buffer:
         if ( buffers.size() == 1 )
@@ -646,7 +644,7 @@ namespace
         }
         buffers.back().line = yylineno;
 
-        if (_cLine->isVerbose())
+        if (parse_line_ptr->isVerbose())
         {
             yymessage( (std::string("Stop parsing: ")+buffers.back().filename).c_str());
             yymessage( (std::string("Start parsing: ")+macroName).c_str());
@@ -1369,7 +1367,7 @@ L?\"(\\.|[^\"])*\"                      {
     ++yylineno;
     yycolumno += static_cast<int>(strlen(yytext));
 
-    yylval.text = yytext;
+    yylval.text = hif::application_utils::hif_strdup(yytext);
 
 #ifdef LEXER_VERBOSE_MODE
     (*debugStream) << "IDENTIFIER: " << yytext << std::endl;

@@ -1,6 +1,7 @@
 /// @file vhdl_parser.hpp
 /// @brief Header file for the VhdlParser class.
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -23,19 +24,19 @@ class VhdlParser;
 class VhdlParser
 {
 public:
-    VhdlParser(std::string fileName);
+    VhdlParser(const std::string &fileName);
     ~VhdlParser();
 
     /// @brief For any instance, store the entity/configuration to use.
-    typedef std::map<hif::Instance *, binding_indication_t *> component_configuration_map_t;
+    using component_configuration_map_t = std::map<hif::Instance *, binding_indication_t *>;
 
     /// @brief For any configuration, store the indications for each components.
-    typedef std::map<configuration_map_key_t, component_configuration_map_t> configuration_map_t;
+    using configuration_map_t = std::map<configuration_map_key_t, component_configuration_map_t>;
 
-    typedef std::map<std::string, std::set<std::string>> LibraryFunctions_t;
-    typedef std::map<std::string, std::string> Attributes_t;
-    typedef std::set<std::string> VhdlTypes_t;
-    typedef std::map<std::string, std::string> OperatorOverloading_t;
+    using LibraryFunctions_t    = std::map<std::string, std::set<std::string>>;
+    using Attributes_t          = std::map<std::string, std::string>;
+    using VhdlTypes_t           = std::set<std::string>;
+    using OperatorOverloading_t = std::map<std::string, std::string>;
 
     // @brief Enumeration used to set the current parsing context.
     // Parser can be in VHDL or PSL mode, according to the keywords and
@@ -53,28 +54,28 @@ public:
     static std::list<architecture_body_t *> *du_definitions;
     static hif::BList<hif::LibraryDef> *lib_definitions;
 
-    static hif::System *buildSystemObject();
+    static auto buildSystemObject() -> hif::System *;
 
     /*
          * Public functions
          * --------------------------------------------------------------------- */
 
     /// @brief Parser entry point
-    bool parse(bool parseOnly);
+    auto parse(bool parseOnly) -> bool;
     void setCurrentBlockCodeInfo(keyword_data_t keyword);
     void setCurrentBlockCodeInfo(hif::Object *other);
     void setCodeInfo(hif::Object *o);
     void setCodeInfoFromCurrentBlock(hif::Object *o);
     void setContextVhdl();
     void setContextPsl();
-    parser_context_enum_t getContext();
+    auto getContext() -> parser_context_enum_t;
 
     void setGlobalScope(bool s);
 
-    bool isGlobalScope();
-    bool isParseOnly();
+    auto isGlobalScope() const -> bool;
+    auto isParseOnly() const -> bool;
 
-    bool isPslMixed();
+    auto isPslMixed() const -> bool;
 
     /// @brief Collects all the libraries used by the design
     void addLibrary(hif::BList<hif::Library> *lib);
@@ -83,412 +84,422 @@ public:
          * VHDL-Grammar related functions
          * --------------------------------------------------------------------- */
 
-    hif::BList<hif::ParameterAssign> *parse_ActualParameterPart(hif::BList<hif::PortAssign> *association_list);
+    auto parse_ActualParameterPart(hif::BList<hif::PortAssign> *association_list) -> hif::BList<hif::ParameterAssign> *;
 
-    hif::Alias *
-    parse_AliasDeclaration(hif::Identifier *designator, subtype_indication_t *subtype_indication, hif::Value *name);
+    auto parse_AliasDeclaration(hif::Identifier *designator, subtype_indication_t *subtype_indication, hif::Value *name)
+        -> hif::Alias *;
 
-    hif::Value *parse_Allocator(subtype_indication_t *subtype_indication);
-    hif::Value *parse_Allocator(hif::Cast *qualified_expression);
+    auto parse_Allocator(subtype_indication_t *subtype_indication) -> hif::Value *;
+    auto parse_Allocator(hif::Cast *qualified_expression) -> hif::Value *;
 
-    hif::PortAssign *parse_AssociationElement(hif::Value *formal_part, hif::Value *actual_part);
+    auto parse_AssociationElement(hif::Value *formal_part, hif::Value *actual_part) -> hif::PortAssign *;
 
-    hif::PortAssign *parse_AssociationElement(hif::Value *actual_part);
+    auto parse_AssociationElement(hif::Value *actual_part) -> hif::PortAssign *;
 
-    hif::FunctionCall *parse_AttributeName(hif::Value *prefix, hif::Value *name);
+    auto parse_AttributeName(hif::Value *prefix, hif::Value *name) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_AttributeName(hif::Value *prefix, hif::Value *nn, hif::Value *expression);
+    auto parse_AttributeName(hif::Value *prefix, hif::Value *nn, hif::Value *expression) -> hif::FunctionCall *;
 
-    architecture_body_t *parse_ArchitectureBody(
+    auto parse_ArchitectureBody(
         hif::Value *identifier,
         hif::Value *name,
         std::list<block_declarative_item_t *> *architecture_declarative_part,
-        std::list<concurrent_statement_t *> *concurrent_statement_list);
+        std::list<concurrent_statement_t *> *concurrent_statement_list) -> architecture_body_t *;
 
-    hif::ProcedureCall *parse_Assertion(assert_directive_t *a);
+    auto parse_Assertion(assert_directive_t *a) -> hif::ProcedureCall *;
 
-    hif::Aggregate *parse_Aggregate(hif::BList<hif::AggregateAlt> *element_association_list);
+    auto parse_Aggregate(hif::BList<hif::AggregateAlt> *element_association_list) -> hif::Aggregate *;
 
-    hif::IntValue *parse_BasedLiteral(std::string basedLit);
+    auto parse_BasedLiteral(const std::string &basedLit) -> hif::IntValue *;
 
-    hif::BitvectorValue *parse_BitStringLiteral(identifier_data_t bitString);
+    auto parse_BitStringLiteral(identifier_data_t bitString) -> hif::BitvectorValue *;
 
-    block_configuration_t *parse_BlockConfiguration(
+    auto parse_BlockConfiguration(
         block_specification_t *block_specification,
         hif::BList<hif::Library> *use_clause_list,
-        std::list<configuration_item_t *> *configuration_item_list);
+        std::list<configuration_item_t *> *configuration_item_list) -> block_configuration_t *;
 
-    hif::View *parse_BlockStatement(
+    auto parse_BlockStatement(
         hif::Value *identifier,
         hif::Value *guard_expression,
         block_header_t *block_header,
         std::list<block_declarative_item_t *> *block_declarative_item_list,
-        std::list<concurrent_statement_t *> *concurrent_statement_list);
+        std::list<concurrent_statement_t *> *concurrent_statement_list) -> hif::View *;
 
-    hif::Value *parse_CharacterLiteral(const char *c);
+    auto parse_CharacterLiteral(const char *c) -> hif::Value *;
 
-    hif::StateTable *parse_ConcurrentAssertionStatement(hif::ProcedureCall *assertion);
+    static auto parse_ConcurrentAssertionStatement(hif::ProcedureCall *assertion) -> hif::StateTable *;
 
-    component_specification_t *parse_ComponentSpecification(instantiation_list_t *instantiation_list, hif::Value *name);
+    auto parse_ComponentSpecification(instantiation_list_t *instantiation_list, hif::Value *name)
+        -> component_specification_t *;
 
-    hif::BList<hif::Assign> *
-    parse_ConditionalSignalAssignment(hif::Value *target, hif::BList<hif::Assign> *conditional_waveforms);
+    static auto parse_ConditionalSignalAssignment(hif::Value *target, hif::BList<hif::Assign> *conditional_waveforms)
+        -> hif::BList<hif::Assign> *;
 
-    hif::BList<hif::Assign> *parse_ConditionalWaveforms(
+    auto parse_ConditionalWaveforms(
         hif::When *conditional_waveforms_when_else_list,
         hif::BList<hif::Assign> *waveform,
-        hif::Value *condition);
+        hif::Value *condition) -> hif::BList<hif::Assign> *;
 
-    hif::When *parse_ConditionalWaveformsWhen(
+    auto parse_ConditionalWaveformsWhen(
         hif::When *conditional_waveforms_when_else_list,
         hif::BList<hif::Assign> *waveform,
-        hif::Value *condition);
+        hif::Value *condition) -> hif::When *;
 
     void parse_ConfigurationDeclaration(
         hif::Value *identifier,
         hif::Value *name,
         block_configuration_t *block_configuration);
 
-    component_configuration_t *parse_ConfigurationSpecification(
+    static auto parse_ConfigurationSpecification(
         component_specification_t *component_specification,
-        binding_indication_t *binding_indication);
+        binding_indication_t *binding_indication) -> component_configuration_t *;
 
-    hif::Switch *
-    parse_CaseStatement(hif::Value *expression, hif::BList<hif::SwitchAlt> *case_statement_alternative_list);
+    auto parse_CaseStatement(hif::Value *expression, hif::BList<hif::SwitchAlt> *case_statement_alternative_list)
+        -> hif::Switch *;
 
-    hif::SwitchAlt *
-    parse_CaseStatementAlternative(hif::BList<hif::Value> *choices, hif::BList<hif::Action> *statements);
+    auto parse_CaseStatementAlternative(hif::BList<hif::Value> *choices, hif::BList<hif::Action> *statements)
+        -> hif::SwitchAlt *;
 
-    component_configuration_t *parse_ComponentConfiguration(
+    static auto parse_ComponentConfiguration(
         component_specification_t *component_specification,
         binding_indication_t *binding_indication_opt,
-        block_configuration_t *block_configuration_opt);
+        block_configuration_t *block_configuration_opt) -> component_configuration_t *;
 
-    hif::DesignUnit *parse_ComponentDeclaration(
+    auto parse_ComponentDeclaration(
         hif::Value *identifier,
         hif::BList<hif::Declaration> *generic_clause_opt,
-        hif::BList<hif::Port> *port_clause_opt);
+        hif::BList<hif::Port> *port_clause_opt) -> hif::DesignUnit *;
 
-    hif::Instance *parse_ComponentInstantiationStatement(
+    auto parse_ComponentInstantiationStatement(
         hif::Value *identifier,
         hif::ViewReference *instantiated_unit,
         hif::BList<hif::TPAssign> *generic_map_aspect_opt,
-        hif::BList<hif::PortAssign> *port_map_aspect_opt);
+        hif::BList<hif::PortAssign> *port_map_aspect_opt) -> hif::Instance *;
 
-    hif::BList<hif::Declaration> *parse_ConstantDeclaration(
+    auto parse_ConstantDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         subtype_indication_t *subtype_indication,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::BList<hif::Declaration> *;
 
-    hif::Array *parse_ConstrainedArrayDefinition(
+    auto parse_ConstrainedArrayDefinition(
         hif::BList<hif::Range> *index_constraint,
-        subtype_indication_t *subtype_indication);
+        subtype_indication_t *subtype_indication) -> hif::Array *;
 
-    hif::Value *parser_DecimalLiteral(char *abstractLit);
+    auto parser_DecimalLiteral(char *abstractLit) -> hif::Value *;
 
-    hif::Identifier *parse_Designator(hif::Value *identifier);
+    auto parse_Designator(hif::Value *identifier) -> hif::Identifier *;
 
     void parse_DesignUnit(std::list<context_item_t *> *context_clause, library_unit_t *library_unit);
 
-    hif::Range *parse_DiscreteRange(subtype_indication_t *subtype_indication);
+    auto parse_DiscreteRange(subtype_indication_t *subtype_indication) -> hif::Range *;
 
-    hif::Value *parse_DiscreteRange(hif::Value *expression);
+    auto parse_DiscreteRange(hif::Value *expression) -> hif::Value *;
 
-    hif::AggregateAlt *parse_ElementAssociation(hif::BList<hif::Value> *choices, hif::Value *expression);
+    auto parse_ElementAssociation(hif::BList<hif::Value> *choices, hif::Value *expression) -> hif::AggregateAlt *;
 
-    hif::AggregateAlt *parse_ElementAssociation(hif::Value *expression);
+    auto parse_ElementAssociation(hif::Value *expression) -> hif::AggregateAlt *;
 
-    hif::BList<hif::Field> *
-    parse_ElementDeclaration(hif::BList<hif::Identifier> *identifier_list, hif::Type *element_subtype_definition);
+    auto parse_ElementDeclaration(hif::BList<hif::Identifier> *identifier_list, hif::Type *element_subtype_definition)
+        -> hif::BList<hif::Field> *;
 
-    hif::Type *parse_ElementSubtypeDefinition(subtype_indication_t *subtype_indication);
+    static auto parse_ElementSubtypeDefinition(subtype_indication_t *subtype_indication) -> hif::Type *;
 
-    entity_aspect_t *parse_EntityAspect(hif::Value *name, bool entity, bool configuration);
+    auto parse_EntityAspect(hif::Value *name, bool entity, bool configuration) -> entity_aspect_t *;
 
-    hif::DesignUnit *parse_EntityDeclaration(
+    auto parse_EntityDeclaration(
         hif::Value *identifier,
         hif::View *entity_header,
-        std::list<entity_declarative_item_t *> *entity_declarative_part);
+        std::list<entity_declarative_item_t *> *entity_declarative_part) -> hif::DesignUnit *;
 
-    hif::View *parse_EntityHeader(hif::BList<hif::Declaration> *generic_clause, hif::BList<hif::Port> *port_clause);
+    auto
+    parse_EntityHeader(hif::BList<hif::Declaration> *generic_clause, hif::BList<hif::Port> *port_clause) -> hif::View *;
 
-    hif::EnumValue *parse_EnumerationLiteral(char *characterLit);
+    auto parse_EnumerationLiteral(char *characterLit) -> hif::EnumValue *;
 
-    hif::EnumValue *parse_EnumerationLiteral(hif::Value *identifier);
+    auto parse_EnumerationLiteral(hif::Value *identifier) -> hif::EnumValue *;
 
-    hif::Break *parse_ExitStatement(hif::Identifier *identifier_colon_opt, hif::Identifier *identifier_opt);
+    auto parse_ExitStatement(hif::Identifier *identifier_colon_opt, hif::Identifier *identifier_opt) -> hif::Break *;
 
-    hif::Value *parse_Expression(hif::Value *left_relation, hif::Value *right_relation, hif::Operator op_type);
+    auto parse_Expression(hif::Value *left_relation, hif::Value *right_relation, hif::Operator op_type) -> hif::Value *;
 
-    hif::Value *parse_ExpressionAND(hif::Value *left_relation, hif::Value *right_relation);
+    auto parse_ExpressionAND(hif::Value *left_relation, hif::Value *right_relation) -> hif::Value *;
 
-    hif::Value *parse_ExpressionXNOR(hif::Value *left_relation, hif::Value *right_relation);
+    auto parse_ExpressionXNOR(hif::Value *left_relation, hif::Value *right_relation) -> hif::Value *;
 
-    hif::Value *parse_ExpressionNOR(hif::Value *left_relation, hif::Value *right_relation);
+    auto parse_ExpressionNOR(hif::Value *left_relation, hif::Value *right_relation) -> hif::Value *;
 
-    hif::Value *parse_ExpressionNAND(hif::Value *left_relation, hif::Value *right_relation);
+    auto parse_ExpressionNAND(hif::Value *left_relation, hif::Value *right_relation) -> hif::Value *;
 
-    hif::BList<hif::Declaration> *parse_FileDeclaration(
+    auto parse_FileDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         subtype_indication_t *subtype_indication,
-        hif::Value *file_open_information);
+        hif::Value *file_open_information) -> hif::BList<hif::Declaration> *;
 
-    hif::Value *parse_FileOpenInformation(hif::Value *expression, hif::Value *file_logical_name);
+    auto parse_FileOpenInformation(hif::Value *expression, hif::Value *file_logical_name) -> hif::Value *;
 
-    hif::File *parse_FileTypeDefinition(hif::Value *name);
+    auto parse_FileTypeDefinition(hif::Value *name) -> hif::File *;
 
-    hif::Type *parse_FloatingOrIntegerTypeDefinition(hif::Range *range_constraint);
+    auto parse_FloatingOrIntegerTypeDefinition(hif::Range *range_constraint) -> hif::Type *;
 
-    hif::TypeDef *parse_FullTypeDeclaration(hif::Value *id, hif::Type *type_definition);
+    auto parse_FullTypeDeclaration(hif::Value *id, hif::Type *type_definition) -> hif::TypeDef *;
 
-    hif::Value *parse_FunctionCall(hif::Value *name, hif::BList<hif::PortAssign> *passign_list);
+    auto parse_FunctionCall(hif::Value *name, hif::BList<hif::PortAssign> *passign_list) -> hif::Value *;
 
-    hif::Value *parse_SequenceInstance(hif::Value *name, hif::BList<hif::Value> *passign_list);
+    auto parse_SequenceInstance(hif::Value *name, hif::BList<hif::Value> *passign_list) -> hif::Value *;
 
-    hif::Generate *parse_GenerateStatement(
+    auto parse_GenerateStatement(
         hif::Value *identifier,
         hif::Generate *generation_scheme,
         std::list<block_declarative_item_t *> *block_declarative_item_list,
-        std::list<concurrent_statement_t *> *concurrent_statement_list);
+        std::list<concurrent_statement_t *> *concurrent_statement_list) -> hif::Generate *;
 
-    hif::Generate *parse_GenerationScheme(hif::For *for_scheme);
+    auto parse_GenerationScheme(hif::For *for_scheme) -> hif::Generate *;
 
-    hif::Generate *parse_GenerationScheme(hif::Value *contdition);
+    auto parse_GenerationScheme(hif::Value *condition) -> hif::Generate *;
 
-    hif::BList<hif::Declaration> *parse_GenericClause(std::list<interface_declaration_t *> *generic_list);
+    auto parse_GenericClause(std::list<interface_declaration_t *> *generic_list) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::TPAssign> *parse_GenericMapAspect(hif::BList<hif::PortAssign> *association_list);
+    auto parse_GenericMapAspect(hif::BList<hif::PortAssign> *association_list) -> hif::BList<hif::TPAssign> *;
 
-    hif::ViewReference *parse_HdlModuleName(hif::Value *entityIdentifier, hif::Value *viewIdentifier = nullptr);
+    auto
+    parse_HdlModuleName(hif::Value *entityIdentifier, hif::Value *viewIdentifier = nullptr) -> hif::ViewReference *;
 
-    hif::Type *parse_HdlVariableType(subtype_indication_t *subtype_indication);
+    static auto parse_HdlVariableType(subtype_indication_t *subtype_indication) -> hif::Type *;
 
-    hif::Value *parse_Identifier(char *identifier);
+    auto parse_Identifier(char *identifier) -> hif::Value *;
 
-    hif::Range *parse_IndexConstraint(hif::Value *discrete_range);
+    auto parse_IndexConstraint(hif::Value *discrete_range) -> hif::Range *;
 
-    hif::Action *parse_IfStatement(
+    auto parse_IfStatement(
         hif::Value *condition,
         hif::BList<hif::Action> *sequence_of_statements_then,
         hif::BList<hif::IfAlt> *if_statement_elseif_list,
-        hif::BList<hif::Action> *sequence_of_statements_other);
+        hif::BList<hif::Action> *sequence_of_statements_other) -> hif::Action *;
 
-    hif::Action *parse_IfStatement(
+    auto parse_IfStatement(
         hif::Value *condition,
         hif::BList<hif::Action> *sequence_of_statements,
-        hif::BList<hif::IfAlt> *if_statement_elseif_list);
+        hif::BList<hif::IfAlt> *if_statement_elseif_list) -> hif::Action *;
 
-    hif::Action *parse_IfStatement(
+    auto parse_IfStatement(
         hif::Value *condition,
         hif::BList<hif::Action> *sequance_of_statements_then,
-        hif::BList<hif::Action> *sequance_of_statements_else);
+        hif::BList<hif::Action> *sequance_of_statements_else) -> hif::Action *;
 
-    hif::Action *parse_IfStatement(hif::Value *condition, hif::BList<hif::Action> *sequence_of_statements);
+    auto parse_IfStatement(hif::Value *condition, hif::BList<hif::Action> *sequence_of_statements) -> hif::Action *;
 
-    hif::BList<hif::IfAlt> *
-    parse_IfStatementElseifList(hif::Value *condition, hif::BList<hif::Action> *sequence_of_statements);
+    auto parse_IfStatementElseifList(hif::Value *condition, hif::BList<hif::Action> *sequence_of_statements)
+        -> hif::BList<hif::IfAlt> *;
 
-    hif::BList<hif::IfAlt> *parse_IfStatementElseifList(
+    auto parse_IfStatementElseifList(
         hif::BList<hif::IfAlt> *if_statement_elseif_list,
         hif::Value *condition,
-        hif::BList<hif::Action> *sequence_of_statements);
+        hif::BList<hif::Action> *sequence_of_statements) -> hif::BList<hif::IfAlt> *;
 
-    hif::Range *parse_IndexSubtypeDefinition(hif::Value *name);
+    auto parse_IndexSubtypeDefinition(hif::Value *name) -> hif::Range *;
 
-    hif::ViewReference *parse_InstantiatedUnit(bool component, bool entity, hif::Value *name);
+    auto parse_InstantiatedUnit(bool component, bool entity, hif::Value *name) -> hif::ViewReference *;
 
-    instantiation_list_t *parse_InstantiationList(hif::BList<hif::Identifier> *identifier_list);
+    static auto parse_InstantiationList(hif::BList<hif::Identifier> *identifier_list) -> instantiation_list_t *;
 
-    instantiation_list_t *parse_InstantiationList(bool all);
+    static auto parse_InstantiationList(bool all) -> instantiation_list_t *;
 
-    hif::BList<hif::Port> *parse_InterfaceConstantDeclaration(
+    auto parse_InterfaceConstantDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         bool in_opt,
         subtype_indication_t *subtype_indication,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::BList<hif::Port> *;
 
-    hif::BList<hif::Port> *parse_InterfaceDeclaration(
+    auto parse_InterfaceDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         hif::PortDirection mode_opt,
-        subtype_indication_t *subtype_indication);
+        subtype_indication_t *subtype_indication) -> hif::BList<hif::Port> *;
 
-    hif::BList<hif::Port> *parse_InterfaceSignalDeclaration(
-        hif::BList<hif::Identifier> *identifier_list,
-        hif::PortDirection mode_opt,
-        subtype_indication_t *subtype_indication,
-        hif::Value *expression);
-
-    hif::BList<hif::Port> *parse_InterfaceVariableDeclaration(
+    auto parse_InterfaceSignalDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         hif::PortDirection mode_opt,
         subtype_indication_t *subtype_indication,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::BList<hif::Port> *;
 
-    hif::Action *parse_IterationScheme(hif::Value *condition);
+    auto parse_InterfaceVariableDeclaration(
+        hif::BList<hif::Identifier> *identifier_list,
+        hif::PortDirection mode_opt,
+        subtype_indication_t *subtype_indication,
+        hif::Value *expression) -> hif::BList<hif::Port> *;
 
-    hif::Action *parse_IterationScheme(hif::BList<hif::Value> *parameter_specification);
+    auto parse_IterationScheme(hif::Value *condition) -> hif::Action *;
 
-    hif::BList<hif::Library> *parse_LibraryClause(hif::BList<hif::Identifier> *logical_name_list);
+    auto parse_IterationScheme(hif::BList<hif::Value> *parameter_specification) -> hif::Action *;
 
-    hif::Value *parse_Literal_null();
+    static auto parse_LibraryClause(hif::BList<hif::Identifier> *logical_name_list) -> hif::BList<hif::Library> *;
 
-    hif::Action *parse_LoopStatement(
+    auto parse_Literal_null() -> hif::Value *;
+
+    auto parse_LoopStatement(
         hif::Identifier *identifier_colon_opt,
         hif::Action *iteration_scheme_opt,
-        hif::BList<hif::Action> *sequence_of_statements);
+        hif::BList<hif::Action> *sequence_of_statements) -> hif::Action *;
 
-    hif::Action *parse_NextStatement(hif::Identifier *identifier_opt, hif::Value *condition);
+    auto parse_NextStatement(hif::Identifier *identifier_opt, hif::Value *condition) -> hif::Action *;
 
-    hif::Action *parse_NextStatement(hif::Identifier *identifier_opt);
+    auto parse_NextStatement(hif::Identifier *identifier_opt) -> hif::Action *;
 
-    hif::Value *parse_NumericLiteral(hif::Value *num, hif::Value *unit);
+    auto parse_NumericLiteral(hif::Value *num, hif::Value *unit) -> hif::Value *;
 
-    hif::LibraryDef *parse_PackageBody(hif::Value *id, hif::BList<hif::Declaration> *package_body_declarative_part);
+    auto
+    parse_PackageBody(hif::Value *id, hif::BList<hif::Declaration> *package_body_declarative_part) -> hif::LibraryDef *;
 
-    hif::LibraryDef *parse_PackageDeclaration(hif::Value *id, hif::BList<hif::Declaration> *package_declarative_part);
+    auto parse_PackageDeclaration(hif::Value *id, hif::BList<hif::Declaration> *package_declarative_part)
+        -> hif::LibraryDef *;
 
-    hif::For *parse_ParameterSpecification(hif::Value *id, hif::Range *discrete_range);
+    auto parse_ParameterSpecification(hif::Value *id, hif::Range *discrete_range) -> hif::For *;
 
-    hif::BList<hif::Port> *parse_PortList(std::list<interface_declaration_t *> *interface_list);
+    auto parse_PortList(std::list<interface_declaration_t *> *interface_list) -> hif::BList<hif::Port> *;
 
-    hif::Value *parse_Primary(hif::Aggregate *aggregate);
+    auto parse_Primary(hif::Aggregate *aggregate) -> hif::Value *;
 
-    hif::ProcedureCall *parse_ProcedureCall(hif::Value *name);
+    auto parse_ProcedureCall(hif::Value *name) -> hif::ProcedureCall *;
 
-    hif::StateTable *parse_ProcessStatement(
+    auto parse_ProcessStatement(
         hif::Identifier *identifier_colon_opt,
         hif::BList<hif::Value> *sensitivity_list_paren_opt,
         hif::BList<hif::Declaration> *process_declarative_part,
         hif::BList<hif::Action> *process_statement_part,
-        hif::Identifier *identifier_opt);
+        hif::Identifier *identifier_opt) -> hif::StateTable *;
 
-    hif::Cast *parse_QualifiedExpression(hif::Value *name, hif::Aggregate *aggregate);
+    auto parse_QualifiedExpression(hif::Value *name, hif::Aggregate *aggregate) -> hif::Cast *;
 
-    hif::Range *parse_Range(hif::Value *attribute_name);
+    auto parse_Range(hif::Value *attribute_name) -> hif::Range *;
 
-    hif::Range *
-    parse_Range(hif::Value *simple_expression_left, hif::RangeDirection direction, hif::Value *simple_espression_right);
+    auto
+    parse_Range(hif::Value *simple_expression_left, hif::RangeDirection direction, hif::Value *simple_espression_right)
+        -> hif::Range *;
 
-    hif::Record *parse_RecordTypeDefinition(hif::BList<hif::Field> *element_declaration_list);
+    auto parse_RecordTypeDefinition(hif::BList<hif::Field> *element_declaration_list) -> hif::Record *;
 
-    hif::Return *parse_ReturnStatement(hif::Value *expression_opt);
+    auto parse_ReturnStatement(hif::Value *expression_opt) -> hif::Return *;
 
-    hif::Type *parse_ScalarTypeDefinition(hif::BList<hif::EnumValue> *enumeration_type_definition);
+    auto parse_ScalarTypeDefinition(hif::BList<hif::EnumValue> *enumeration_type_definition) -> hif::Type *;
 
-    hif::FieldReference *parse_SelectedName(hif::Value *name, hif::Value *suffix);
+    auto parse_SelectedName(hif::Value *name, hif::Value *suffix) -> hif::FieldReference *;
 
-    hif::BList<hif::Assign> *parse_SignalAssignmentStatement(
+    auto parse_SignalAssignmentStatement(
         hif::Identifier *identifier_colon_opt,
         hif::Value *target,
-        hif::BList<hif::Assign> *waveform);
+        hif::BList<hif::Assign> *waveform) -> hif::BList<hif::Assign> *;
 
-    hif::Assign *parse_SelectedSignalAssignment(
+    auto parse_SelectedSignalAssignment(
         hif::Value *expression,
         hif::Value *target,
-        hif::BList<hif::WithAlt> *selected_waveforms);
+        hif::BList<hif::WithAlt> *selected_waveforms) -> hif::Assign *;
 
-    hif::WithAlt *parse_SelectedWaveformsWhen(hif::BList<hif::Assign> *waveform, hif::BList<hif::Value> *choices);
+    auto
+    parse_SelectedWaveformsWhen(hif::BList<hif::Assign> *waveform, hif::BList<hif::Value> *choices) -> hif::WithAlt *;
 
-    hif::BList<hif::Declaration> *parse_SignalDeclaration(
+    auto parse_SignalDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         subtype_indication_t *subtype_indication,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *
-    parse_SignalDeclaration(hif::BList<hif::Identifier> *identifier_list, subtype_indication_t *subtype_indication);
+    auto parse_SignalDeclaration(hif::BList<hif::Identifier> *identifier_list, subtype_indication_t *subtype_indication)
+        -> hif::BList<hif::Declaration> *;
 
-    hif::Value *parse_StringLiteral(identifier_data_t stringLit);
+    auto parse_StringLiteral(identifier_data_t stringLit) -> hif::Value *;
 
-    hif::Declaration *parse_SubprogramBody(
+    auto parse_SubprogramBody(
         hif::SubProgram *subprogram_specification,
         hif::BList<hif::Declaration> *subprogram_declarative_part,
-        hif::BList<hif::Action> *suprogram_statement_part);
+        hif::BList<hif::Action> *suprogram_statement_part) -> hif::Declaration *;
 
-    hif::SubProgram *parse_SubprogramSpecification(
+    auto parse_SubprogramSpecification(
         hif::Identifier *designator,
-        std::list<interface_declaration_t *> *formal_parameter_list_paren_opt);
+        std::list<interface_declaration_t *> *formal_parameter_list_paren_opt) -> hif::SubProgram *;
 
-    hif::SubProgram *parse_SubprogramSpecification(
+    auto parse_SubprogramSpecification(
         hif::Identifier *designator,
         std::list<interface_declaration_t *> *formal_parameter_list_paren_opt,
-        hif::Value *name);
+        hif::Value *name) -> hif::SubProgram *;
 
-    hif::TypeDef *parse_SubtypeDeclaration(hif::Value *id, subtype_indication_t *subtype_indication);
+    auto parse_SubtypeDeclaration(hif::Value *id, subtype_indication_t *subtype_indication) -> hif::TypeDef *;
 
-    subtype_indication_t *parse_SubtypeIndication(hif::Value *name, constraint_t *constraint_opt);
+    auto parse_SubtypeIndication(hif::Value *name, constraint_t *constraint_opt) -> subtype_indication_t *;
 
-    hif::Array *parse_UnconstrainedArrayDefinition(
+    auto parse_UnconstrainedArrayDefinition(
         hif::BList<hif::Range> *index_subtype_definition_list,
-        subtype_indication_t *subtype_indication);
+        subtype_indication_t *subtype_indication) -> hif::Array *;
 
-    hif::BList<hif::Library> *parse_UseClause(hif::BList<hif::FieldReference> *selected_name_list);
+    auto parse_UseClause(hif::BList<hif::FieldReference> *selected_name_list) -> hif::BList<hif::Library> *;
 
-    hif::Assign *parse_VariableAssignmentStatement(hif::Value *targer, hif::Value *expression);
+    auto parse_VariableAssignmentStatement(hif::Value *targer, hif::Value *expression) -> hif::Assign *;
 
-    hif::BList<hif::Declaration> *parse_VariableDeclaration(
+    auto parse_VariableDeclaration(
         hif::BList<hif::Identifier> *identifier_list,
         subtype_indication_t *subtype_indication,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *
-    parse_VariableDeclaration(hif::BList<hif::Identifier> *identifier_list, subtype_indication_t *subtype_indication);
+    auto parse_VariableDeclaration(
+        hif::BList<hif::Identifier> *identifier_list,
+        subtype_indication_t *subtype_indication) -> hif::BList<hif::Declaration> *;
 
-    hif::Wait *parse_WaitStatement(
+    auto parse_WaitStatement(
         hif::BList<hif::Value> *sensitivity_clause_opt,
         hif::Value *condition_clause_opt,
-        hif::Value *timeout_clause_opt);
+        hif::Value *timeout_clause_opt) -> hif::Wait *;
 
-    hif::Assign *parse_WaveformElement(hif::Value *expression, hif::Value *afterExpression);
+    auto parse_WaveformElement(hif::Value *expression, hif::Value *afterExpression) -> hif::Assign *;
 
-    static hif::Type *resolveType(
+    static auto resolveType(
         std::string type_ref,
         hif::BList<hif::Value> *opt_arg,
         hif::Range *ro,
         hif::semantics::ILanguageSemantics *sem,
-        bool mandatory);
+        bool mandatory) -> hif::Type *;
 
     /*
          * PSL-Grammar related functions
          * --------------------------------------------------------------------- */
 
-    hif::Range *parse_RangePsl(hif::Value *lower, hif::Value *upper);
+    auto parse_RangePsl(hif::Value *lower, hif::Value *upper) -> hif::Range *;
 
-    assert_directive_t *parse_AssertDirective(hif::Value *property, hif::Value *report, hif::Value *severity);
+    static auto
+    parse_AssertDirective(hif::Value *property, hif::Value *report, hif::Value *severity) -> assert_directive_t *;
 
-    hif::Value *parse_FLProperty(hif::Value *hdl_or_psl_expression);
+    static auto parse_FLProperty(hif::Value *hdl_or_psl_expression) -> hif::Value *;
 
-    hif::Value *parse_FLProperty(hif::Value *fl_property, hif::Value *clock_expression);
+    auto parse_FLProperty(hif::Value *fl_property, hif::Value *clock_expression) -> hif::Value *;
 
-    hif::Value *parse_FLProperty(hif::Operator bool_op, hif::Value *property1, hif::Value *property2);
+    auto parse_FLProperty(hif::Operator bool_op, hif::Value *property1, hif::Value *property2) -> hif::Value *;
 
-    hif::Value *parse_FLProperty(const char *op, hif::Value *fl_property);
+    auto parse_FLProperty(const char *op, hif::Value *fl_property) -> hif::Value *;
 
-    hif::Value *parse_FLPropertyCycles(const char *op, hif::Value *fl_property, hif::Value *cycles);
+    auto parse_FLPropertyCycles(const char *op, hif::Value *fl_property, hif::Value *cycles) -> hif::Value *;
 
-    hif::Value *parse_FLPropertyRange(const char *op, hif::Value *fl_property, hif::Range *range);
+    auto parse_FLPropertyRange(const char *op, hif::Value *fl_property, hif::Range *range) -> hif::Value *;
 
-    hif::Value *parse_FLPropertyOccurrence(const char *op, hif::Value *fl_property, hif::Value *occurrence);
+    auto parse_FLPropertyOccurrence(const char *op, hif::Value *fl_property, hif::Value *occurrence) -> hif::Value *;
 
-    hif::Value *parse_FLPropertyOccurrenceCycles(
+    auto parse_FLPropertyOccurrenceCycles(
         const char *op,
         hif::Value *fl_property,
         hif::Value *occurrence,
-        hif::Value *cycles);
+        hif::Value *cycles) -> hif::Value *;
 
-    hif::Value *
-    parse_FLPropertyOccurrenceRange(const char *op, hif::Value *fl_property, hif::Value *occurrence, hif::Range *range);
+    auto
+    parse_FLPropertyOccurrenceRange(const char *op, hif::Value *fl_property, hif::Value *occurrence, hif::Range *range)
+        -> hif::Value *;
 
-    hif::Value *parse_FLProperty(const char *op, hif::Value *fl_property1, hif::Value *fl_property2);
+    auto parse_FLProperty(const char *op, hif::Value *fl_property1, hif::Value *fl_property2) -> hif::Value *;
 
-    hif::ProcedureCall *parse_PslDirective(verification_directive_t *v);
+    auto parse_PslDirective(verification_directive_t *v) -> hif::ProcedureCall *;
 
-    hif::DesignUnit *parse_VerificationUnit(hif::Value *name, std::list<vunit_item_t *> *items);
+    auto parse_VerificationUnit(hif::Value *name, std::list<vunit_item_t *> *items) -> hif::DesignUnit *;
 
     void parse_VerificationUnit(hif::Value *name, hif::ViewReference *context_spec, std::list<vunit_item_t *> *items);
 
 private:
     VhdlParser(const VhdlParser &);
-    VhdlParser &operator=(const VhdlParser &);
+    auto operator=(const VhdlParser &) -> VhdlParser &;
 
     // Current parsing file
     std::string _fileName;
@@ -524,7 +535,8 @@ private:
     /// @param contents_o   the Contents object to be populated
     /// @param concurrent_statement_list    the list of concurrent statements
     ///
-    void _populateContents(hif::Contents *contents_o, std::list<concurrent_statement_t *> *concurrent_statement_list);
+    static void
+    _populateContents(hif::Contents *contents_o, std::list<concurrent_statement_t *> *concurrent_statement_list);
 
     void _populateConfigurationMap(configuration_item_t *configuration_item, component_configuration_map_t *config_map);
 
@@ -535,7 +547,8 @@ private:
     /// @param ro The range.
     /// @return Type representation of vhdl type.
     ///
-    hif::Type *_resolveType(std::string type_ref, hif::BList<hif::Value> *opt_arg = nullptr, hif::Range *ro = nullptr);
+    auto _resolveType(std::string type_ref, hif::BList<hif::Value> *opt_arg = nullptr, hif::Range *ro = nullptr)
+        -> hif::Type *;
 
     /// @brief Given a field reference, translates it as a typereference
     /// with nested libraries.
@@ -543,7 +556,7 @@ private:
     /// @param fr The fieldreference.
     /// @return The matched type.
     ///
-    hif::ReferencedType *_resolveFieldReferenceType(hif::FieldReference *fr);
+    auto _resolveFieldReferenceType(hif::FieldReference *fr) -> hif::ReferencedType *;
 
     /// @brief Given a component, fix all instances with default values.
     void _fixIntancesWithComponent(hif::Contents *contents, hif::View *component);

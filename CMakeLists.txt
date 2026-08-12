@@ -51,6 +51,8 @@ find_package(HIF REQUIRED)
 find_package(FLEX REQUIRED)
 find_package(BISON REQUIRED)
 
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # VERILOG2HIF
@@ -65,6 +67,7 @@ bison_target(
     verilog_parser
     "${PROJECT_SOURCE_DIR}/grammar/verilog.yxx"
     "${PROJECT_BINARY_DIR}/verilog_parser.cpp"
+    COMPILE_FLAGS -Wno-other
 )
 
 flex_target(
@@ -104,7 +107,6 @@ target_include_directories(
 
 target_link_libraries(
     verilog2hif PUBLIC
-    ${FLEX_LIBRARIES}
     ${HIF_LIBRARY}
 )
 
@@ -179,8 +181,10 @@ bison_target(
     vhdl_parser
     "${PROJECT_SOURCE_DIR}/grammar/vhdl.yxx"
     "${PROJECT_BINARY_DIR}/vhdlParser.cpp"
+    COMPILE_FLAGS -Wno-other
 )
 
+set(FLEX_FLAGS -w)
 flex_target(
     vhdl_lexer
     "${PROJECT_SOURCE_DIR}/grammar/vhdl.lex"
@@ -212,7 +216,6 @@ target_include_directories(
 # Link libraries.
 target_link_libraries(
     vhdl2hif PUBLIC
-    ${FLEX_LIBRARIES}
     ${HIF_LIBRARY}
 )
 
@@ -276,6 +279,13 @@ endif()
 # =====================================
 
 install(TARGETS vhdl2hif DESTINATION bin)
+
+# -----------------------------------------------------------------------------
+# TESTS
+# -----------------------------------------------------------------------------
+
+enable_testing()
+add_subdirectory(tests)
 
 # -----------------------------------------------------------------------------
 # CODE ANALYSIS

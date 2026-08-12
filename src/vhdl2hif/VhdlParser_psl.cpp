@@ -1,6 +1,7 @@
 /// @file VhdlParser_psl.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -13,17 +14,17 @@ using namespace hif;
  * PSL-Grammar related functions
  * --------------------------------------------------------------------- */
 
-Range *VhdlParser::parse_RangePsl(Value *lower, Value *upper)
+auto VhdlParser::parse_RangePsl(Value *lower, Value *upper) -> Range *
 {
-    Range *ret = new Range(lower, upper, dir_upto);
+    auto *ret = new Range(lower, upper, dir_upto);
     setCodeInfo(ret);
 
     return ret;
 }
 
-assert_directive_t *VhdlParser::parse_AssertDirective(Value *property, Value *report, Value *severity)
+auto VhdlParser::parse_AssertDirective(Value *property, Value *report, Value *severity) -> assert_directive_t *
 {
-    assert_directive_t *ret = new assert_directive_t();
+    auto *ret = new assert_directive_t();
 
     ret->property = property;
     ret->report   = report;
@@ -32,29 +33,29 @@ assert_directive_t *VhdlParser::parse_AssertDirective(Value *property, Value *re
     return ret;
 }
 
-Value *VhdlParser::parse_FLProperty(Value *hdl_or_psl_expression) { return hdl_or_psl_expression; }
+auto VhdlParser::parse_FLProperty(Value *hdl_or_psl_expression) -> Value * { return hdl_or_psl_expression; }
 
-Value *VhdlParser::parse_FLProperty(Value *fl_property, Value *clock_expression)
+auto VhdlParser::parse_FLProperty(Value *fl_property, Value *clock_expression) -> Value *
 {
-    FunctionCall *ret = new FunctionCall();
+    auto *ret = new FunctionCall();
     setCodeInfo(ret);
     ret->setName("psl_fl_property");
     Instance *inst = _factory.libraryInstance("psl_standard", false, true);
     ret->setInstance(inst);
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("op");
     p1->setValue(new Identifier("psl_at_clause"));
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("fl_property1");
     p2->setValue(fl_property);
     ret->parameterAssigns.push_back(p2);
 
-    ParameterAssign *p3 = new ParameterAssign();
+    auto *p3 = new ParameterAssign();
     setCodeInfo(p3);
     p3->setName("fl_property2");
     p3->setValue(clock_expression);
@@ -63,21 +64,21 @@ Value *VhdlParser::parse_FLProperty(Value *fl_property, Value *clock_expression)
     return ret;
 }
 
-Value *VhdlParser::parse_FLProperty(const char *op, Value *fl_property)
+auto VhdlParser::parse_FLProperty(const char *op, Value *fl_property) -> Value *
 {
-    FunctionCall *ret = new FunctionCall();
+    auto *ret = new FunctionCall();
     setCodeInfo(ret);
     ret->setName("psl_fl_property");
     Instance *inst = _factory.libraryInstance("psl_standard", false, true);
     ret->setInstance(inst);
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("op");
     p1->setValue(new Identifier(op));
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("fl_property");
     p2->setValue(fl_property);
@@ -86,11 +87,11 @@ Value *VhdlParser::parse_FLProperty(const char *op, Value *fl_property)
     return ret;
 }
 
-Value *VhdlParser::parse_FLPropertyCycles(const char *op, Value *fl_property, Value *cycles)
+auto VhdlParser::parse_FLPropertyCycles(const char *op, Value *fl_property, Value *cycles) -> Value *
 {
-    FunctionCall *ret = static_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
+    auto *ret = dynamic_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("cycles");
     p1->setValue(cycles);
@@ -99,17 +100,17 @@ Value *VhdlParser::parse_FLPropertyCycles(const char *op, Value *fl_property, Va
     return ret;
 }
 
-Value *VhdlParser::parse_FLPropertyRange(const char *op, Value *fl_property, Range *range)
+auto VhdlParser::parse_FLPropertyRange(const char *op, Value *fl_property, Range *range) -> Value *
 {
-    FunctionCall *ret = static_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
+    auto *ret = dynamic_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("range_lbound");
     p1->setValue(hif::copy(range->getLeftBound()));
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("range_rbound");
     p2->setValue(hif::copy(range->getRightBound()));
@@ -120,11 +121,11 @@ Value *VhdlParser::parse_FLPropertyRange(const char *op, Value *fl_property, Ran
     return ret;
 }
 
-Value *VhdlParser::parse_FLPropertyOccurrence(const char *op, Value *fl_property, Value *occurrence)
+auto VhdlParser::parse_FLPropertyOccurrence(const char *op, Value *fl_property, Value *occurrence) -> Value *
 {
-    FunctionCall *ret = static_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
+    auto *ret = dynamic_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("occurrence_expression");
     p1->setValue(occurrence);
@@ -133,18 +134,18 @@ Value *VhdlParser::parse_FLPropertyOccurrence(const char *op, Value *fl_property
     return ret;
 }
 
-Value *
-VhdlParser::parse_FLPropertyOccurrenceCycles(const char *op, Value *fl_property, Value *occurrence, Value *cycles)
+auto VhdlParser::parse_FLPropertyOccurrenceCycles(const char *op, Value *fl_property, Value *occurrence, Value *cycles)
+    -> Value *
 {
-    FunctionCall *ret = static_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
+    auto *ret = dynamic_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("occurrence_expression");
     p1->setValue(occurrence);
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("cycles");
     p2->setValue(cycles);
@@ -153,23 +154,24 @@ VhdlParser::parse_FLPropertyOccurrenceCycles(const char *op, Value *fl_property,
     return ret;
 }
 
-Value *VhdlParser::parse_FLPropertyOccurrenceRange(const char *op, Value *fl_property, Value *occurrence, Range *range)
+auto VhdlParser::parse_FLPropertyOccurrenceRange(const char *op, Value *fl_property, Value *occurrence, Range *range)
+    -> Value *
 {
-    FunctionCall *ret = static_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
+    auto *ret = dynamic_cast<FunctionCall *>(parse_FLProperty(op, fl_property));
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("occurrence_expression");
     p1->setValue(occurrence);
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("range_lbound");
     p2->setValue(hif::copy(range->getLeftBound()));
     ret->parameterAssigns.push_back(p2);
 
-    ParameterAssign *p3 = new ParameterAssign();
+    auto *p3 = new ParameterAssign();
     setCodeInfo(p3);
     p3->setName("range_rbound");
     p3->setValue(hif::copy(range->getRightBound()));
@@ -180,27 +182,27 @@ Value *VhdlParser::parse_FLPropertyOccurrenceRange(const char *op, Value *fl_pro
     return ret;
 }
 
-Value *VhdlParser::parse_FLProperty(const char *op, Value *fl_property1, Value *fl_property2)
+auto VhdlParser::parse_FLProperty(const char *op, Value *fl_property1, Value *fl_property2) -> Value *
 {
-    FunctionCall *ret = new FunctionCall();
+    auto *ret = new FunctionCall();
     setCodeInfo(ret);
     ret->setName("psl_fl_property");
     Instance *inst = _factory.libraryInstance("psl_standard", false, true);
     ret->setInstance(inst);
 
-    ParameterAssign *p1 = new ParameterAssign();
+    auto *p1 = new ParameterAssign();
     setCodeInfo(p1);
     p1->setName("op");
     p1->setValue(new Identifier(op));
     ret->parameterAssigns.push_back(p1);
 
-    ParameterAssign *p2 = new ParameterAssign();
+    auto *p2 = new ParameterAssign();
     setCodeInfo(p2);
     p2->setName("fl_property1");
     p2->setValue(fl_property1);
     ret->parameterAssigns.push_back(p2);
 
-    ParameterAssign *p3 = new ParameterAssign();
+    auto *p3 = new ParameterAssign();
     setCodeInfo(p3);
     p3->setName("fl_property2");
     p3->setValue(fl_property2);
@@ -209,7 +211,7 @@ Value *VhdlParser::parse_FLProperty(const char *op, Value *fl_property1, Value *
     return ret;
 }
 
-ProcedureCall *VhdlParser::parse_PslDirective(verification_directive_t *v)
+auto VhdlParser::parse_PslDirective(verification_directive_t *v) -> ProcedureCall *
 {
     ProcedureCall *ret = nullptr;
 
@@ -221,14 +223,14 @@ ProcedureCall *VhdlParser::parse_PslDirective(verification_directive_t *v)
         Instance *inst = _factory.libraryInstance("psl_standard", false, true);
         ret->setInstance(inst);
 
-        ParameterAssign *p1 = new ParameterAssign();
+        auto *p1 = new ParameterAssign();
         setCodeInfo(p1);
         p1->setName("property");
         p1->setValue(assert_directive->property);
         ret->parameterAssigns.push_back(p1);
 
         if (assert_directive->report != nullptr) {
-            ParameterAssign *p2 = new ParameterAssign();
+            auto *p2 = new ParameterAssign();
             setCodeInfo(p2);
             p2->setName("report");
             p2->setValue(assert_directive->report);
@@ -270,16 +272,16 @@ ProcedureCall *VhdlParser::parse_PslDirective(verification_directive_t *v)
     return ret;
 }
 
-DesignUnit *VhdlParser::parse_VerificationUnit(Value *name, std::list<vunit_item_t *> *items)
+auto VhdlParser::parse_VerificationUnit(Value *name, std::list<vunit_item_t *> *items) -> DesignUnit *
 {
-    Identifier *vunitName = dynamic_cast<Identifier *>(name);
+    auto *vunitName = dynamic_cast<Identifier *>(name);
     messageAssert(vunitName != nullptr, "Unexpected vunit identifier", name, nullptr);
 
-    DesignUnit *designUnit_o = new DesignUnit();
-    Contents *contents_o     = new Contents();
-    View *view_o             = new View();
-    StateTable *stateTable_o = new StateTable();
-    State *state_o           = new State();
+    auto *designUnit_o = new DesignUnit();
+    auto *contents_o   = new Contents();
+    View *view_o       = new View();
+    auto *stateTable_o = new StateTable();
+    auto *state_o      = new State();
 
     view_o->setEntity(new Entity());
     view_o->setLanguageID(hif::psl);
@@ -297,7 +299,7 @@ DesignUnit *VhdlParser::parse_VerificationUnit(Value *name, std::list<vunit_item
     std::list<concurrent_statement_t *> concurrent_statement_list;
 
     // STEP 1 : add psl directives and declarations
-    for (std::list<vunit_item_t *>::iterator it = items->begin(); it != items->end();) {
+    for (auto it = items->begin(); it != items->end();) {
         vunit_item_t *item = *it;
 
         if (item->concurrent_statement != nullptr) {

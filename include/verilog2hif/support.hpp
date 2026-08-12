@@ -1,6 +1,7 @@
 /// @file support.hpp
 /// @brief Support for Verilog to HIF conversion.
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -56,60 +57,60 @@ extern const char *INITIAL_STATEMENT;
 
 /// @brief This function build an Int that respects the verilog semantics.
 /// @return a pointer to the newly created object.
-hif::Bitvector *makeVerilogIntegerType();
+auto makeVerilogIntegerType() -> hif::Bitvector *;
 
 /// @brief This function builds a Bit that respects the verilog semantics.
 /// @return a pointer to the newly created object.
-hif::Bit *makeVerilogBitType();
+auto makeVerilogBitType() -> hif::Bit *;
 
 /// @brief This function builds an Array that represent a verilog reg. It is an
 /// array unsigned, packed with type bit logic. The range given is not copied.
 /// @param range the range of the array.
 /// @return a pointer to the newly created object.
-hif::Bitvector *makeVerilogRegisterType(hif::Range *range = nullptr);
+auto makeVerilogRegisterType(hif::Range *range = nullptr) -> hif::Bitvector *;
 
 /// @brief This function builds an Array that represent a verilog reg signed. It
 /// is an array unsigned, packed with type bit logic. The range given is not
 /// copied.
 /// @param range the range of the array.
 /// @return a pointer to the newly created object.
-hif::Bitvector *makeVerilogSignedRegisterType(hif::Range *range = nullptr);
+auto makeVerilogSignedRegisterType(hif::Range *range = nullptr) -> hif::Bitvector *;
 
 /// @brief This function builds a concatenation for all the values inside the
 /// given list. The list must be not empty. The values provided are copied.
 /// @param values the list of values to concatenate.
 /// @return a pointer to the newly created object.
-hif::Value *_concat(hif::BList<hif::Value> &values);
+auto concat(hif::BList<hif::Value> &values) -> hif::Value *;
 
 /// @brief Provides the semantic type of the given range.
 /// @param ro the range to consider.
 /// @param is_signed if true the type is signed, otherwise unsigned.
 /// @return a pointer to the type.
-hif::Type *getSemanticType(hif::Range *ro, bool is_signed = false);
+auto getSemanticType(hif::Range *ro, bool is_signed = false) -> hif::Type *;
 
 /// @brief Converts the given value to a bitvector.
 /// @param number the value to convert.
 /// @param numbit the number of bits of the bitvector.
 /// @return A string representing the bitvector.
-std::string convertToBinary(std::string number, int numbit);
+auto convertToBinary(const std::string &number, int numbit) -> std::string;
 
 /// @brief Converts the given value to a bitvector.
 /// @param number the value to convert.
 /// @param numbit the number of bits of the bitvector.
 /// @return A string representing the bitvector.
-std::string convertToBinary(int number, int numbit);
+auto convertToBinary(int number, int numbit) -> std::string;
 
 /// @brief Given a Switchalt of a casez or casex, transforms z & x into dontcare.
 /// @param c the Switchalt to clean.
 /// @param x if true, x is transformed into dontcare.
-void clean_bitvalues(hif::SwitchAlt *c, const bool x);
+void clean_bitvalues(hif::SwitchAlt *c, bool x);
 
-/// @brief Casts a BList of Parent_t to a BList of Child_t. 
+/// @brief Casts a BList of Parent_t to a BList of Child_t.
 /// @tparam Child_t the type of the child.
 /// @tparam Parent_t the type of the parent.
 /// @param p list to cast.
 /// @return the casted list.
-template <typename Child_t, typename Parent_t> hif::BList<Child_t> *blist_scast(hif::BList<Parent_t> *p)
+template <typename Child_t, typename Parent_t> auto blist_scast(hif::BList<Parent_t> *p) -> hif::BList<Child_t> *
 {
     // Parent_t * tmp_p = nullptr;
     // Child_t * tmp_c = nullptr;

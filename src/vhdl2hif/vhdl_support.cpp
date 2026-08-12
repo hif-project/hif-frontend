@@ -1,6 +1,7 @@
 /// @file vhdl_support.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -32,7 +33,7 @@ using namespace hif;
 namespace
 {
 
-std::string oct2bits(char oct)
+auto oct2bits(char oct) -> std::string
 {
     switch (oct) {
     case '0':
@@ -57,7 +58,7 @@ std::string oct2bits(char oct)
     return "";
 }
 
-std::string hex2bits(char hex)
+auto hex2bits(char hex) -> std::string
 {
     switch (hex) {
     case '0':
@@ -104,9 +105,9 @@ std::string hex2bits(char hex)
     return "";
 }
 
-std::string dec2bits(std::string dec)
+auto dec2bits(const std::string &dec) -> std::string
 {
-    int i;
+    int i    = 0;
     int orig = atoi(dec.c_str());
     std::string result;
     while (orig > 0) {
@@ -126,12 +127,12 @@ std::string dec2bits(std::string dec)
 void yyerror(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*errorStream) << " -- ERROR: " << msg << endl;
-    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*errorStream) << " -- ERROR: " << msg << '\n';
+    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*errorStream, o, false);
-        *errorStream << std::endl;
+        *errorStream << '\n';
     }
     assert(false);
     exit(1);
@@ -154,32 +155,32 @@ void yyerror(char const *msg, Object *o)
 }
 #endif
 
-void yyerror(VhdlParser *, const char *msg) { yyerror(msg, nullptr); }
+void yyerror(VhdlParser * /*unused*/, const char *msg) { yyerror(msg, nullptr); }
 
 void yywarning(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*errorStream) << " -- WARNING: " << msg << endl;
-    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*errorStream) << " -- WARNING: " << msg << '\n';
+    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*errorStream, o, false);
-        *errorStream << std::endl;
+        *errorStream << '\n';
     }
 }
 
 void yydebug(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*debugStream) << " -- DEBUG: " << msg << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*debugStream) << " -- DEBUG: " << msg << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*debugStream, o, false);
-        *debugStream << std::endl;
+        *debugStream << '\n';
     }
 }
 
-std::string toBits(const char *value, int base)
+auto toBits(const char *value, int base) -> std::string
 {
     std::string result = string("");
 
@@ -210,10 +211,10 @@ std::string toBits(const char *value, int base)
 //     atoi( base_lit );
 // }
 
-std::string fro2string(Value *vo)
+auto fro2string(Value *vo) -> std::string
 {
-    FieldReference *fieldref_o = dynamic_cast<FieldReference *>(vo);
-    Identifier *identifier_o   = dynamic_cast<Identifier *>(vo);
+    auto *fieldref_o   = dynamic_cast<FieldReference *>(vo);
+    auto *identifier_o = dynamic_cast<Identifier *>(vo);
 
     if (fieldref_o != nullptr) {
         string name = string(".") + string(fieldref_o->getName());
@@ -225,7 +226,7 @@ std::string fro2string(Value *vo)
     return "";
 }
 
-int bit2decimal(char *value)
+auto bit2decimal(char *value) -> int
 {
     int result = 0;
 
@@ -236,7 +237,7 @@ int bit2decimal(char *value)
     return result;
 }
 
-std::string stringToLower(std::string strToConvert)
+auto stringToLower(std::string strToConvert) -> std::string
 {
     //change each element of the string to lower case
     for (unsigned int i = 0; i < strToConvert.length(); i++) {
@@ -245,7 +246,7 @@ std::string stringToLower(std::string strToConvert)
     return strToConvert;
 }
 
-std::string stringToUpper(std::string strToConvert)
+auto stringToUpper(std::string strToConvert) -> std::string
 {
     //change each element of the string to lower case
     for (unsigned int i = 0; i < strToConvert.length(); i++) {
@@ -254,7 +255,7 @@ std::string stringToUpper(std::string strToConvert)
     return strToConvert; //return the converted string
 }
 
-std::string str_replace(char const *old_value, char const *new_value, std::string s)
+auto str_replace(char const *old_value, char const *new_value, std::string s) -> std::string
 {
     while (s.find(old_value) != std::string::npos) {
         s = s.replace(s.find(old_value), strlen(old_value), new_value);
@@ -263,18 +264,19 @@ std::string str_replace(char const *old_value, char const *new_value, std::strin
     return s;
 }
 
-Library *resolveLibraryType(Value *prefix, const bool skipNotFound)
+auto resolveLibraryType(Value *prefix, bool skipNotFound) -> Library *
 {
-    if (prefix == nullptr)
+    if (prefix == nullptr) {
         return nullptr;
+    }
 
     Library *reference = nullptr;
     Library *ret       = nullptr;
 
     do {
-        Identifier *id      = dynamic_cast<Identifier *>(prefix);
-        FieldReference *ffr = dynamic_cast<FieldReference *>(prefix);
-        Instance *inst      = dynamic_cast<Instance *>(prefix);
+        auto *id   = dynamic_cast<Identifier *>(prefix);
+        auto *ffr  = dynamic_cast<FieldReference *>(prefix);
+        auto *inst = dynamic_cast<Instance *>(prefix);
         if (skipNotFound && id == nullptr && ffr == nullptr && inst == nullptr) {
             return nullptr;
         }
@@ -283,7 +285,7 @@ Library *resolveLibraryType(Value *prefix, const bool skipNotFound)
 
         if (id != nullptr) {
             if (id->getName() != "work") {
-                Library *lib = new Library();
+                auto *lib = new Library();
                 //setCodeInfo(lib);
                 lib->setName(id->getName());
                 if (skipNotFound) {
@@ -297,34 +299,38 @@ Library *resolveLibraryType(Value *prefix, const bool skipNotFound)
                     }
                 }
 
-                if (reference != nullptr)
+                if (reference != nullptr) {
                     reference->setInstance(lib);
+                }
                 reference = lib;
             }
             prefix = nullptr;
         } else if (inst != nullptr) {
-            Library *lib = dynamic_cast<Library *>(inst->getReferencedType());
+            auto *lib = dynamic_cast<Library *>(inst->getReferencedType());
             messageAssert(lib != nullptr, "Unexpected prefix (2)", prefix, nullptr);
             inst->setReferencedType(nullptr);
-            if (reference != nullptr)
+            if (reference != nullptr) {
                 reference->setInstance(lib);
+            }
             reference = lib;
             prefix    = nullptr;
         } else // ffr != nullptr
         {
             if (ffr->getName() != "all") {
-                Library *lib = new Library();
+                auto *lib = new Library();
                 //setCodeInfo(lib);
                 lib->setName(ffr->getName());
-                if (reference != nullptr)
+                if (reference != nullptr) {
                     reference->setInstance(lib);
+                }
                 reference = lib;
             }
             prefix = ffr->getPrefix();
         }
 
-        if (ret == nullptr)
+        if (ret == nullptr) {
             ret = reference;
+        }
     } while (prefix != nullptr);
 
     return ret;

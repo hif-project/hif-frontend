@@ -1,6 +1,7 @@
 /// @file verilog2hif.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -57,8 +58,8 @@ std::ostream *debugStream = new std::ofstream("/dev/null");
 #endif
 
 // Used by lexer
-extern Verilog2hifParseLine *_cLine;
-Verilog2hifParseLine *_cLine = nullptr;
+extern Verilog2hifParseLine *parse_line_ptr;
+Verilog2hifParseLine *parse_line_ptr = nullptr;
 
 /////////////////////////////////////////
 // Utility functions prototypes
@@ -70,8 +71,8 @@ void init_buffer(const char *);
 void postParsingRefinements(
     System *systOb,
     hif::semantics::VerilogSemantics *sem,
-    const bool needVAMSStandard,
-    Verilog2hifParseLine &cLine);
+    bool needVAMSStandard,
+    Verilog2hifParseLine &parse_line);
 
 namespace
 {
@@ -83,7 +84,7 @@ hif::application_utils::StepFileManager _stepFileManager;
 /////////////////////////////////////////
 // verilog2hif main function
 /////////////////////////////////////////
-int main(int argc, char *argv[])
+auto main(int argc, char *argv[]) -> int
 {
     hif::application_utils::initializeLogHeader("VERILOG2HIF", "");
 
@@ -93,9 +94,9 @@ int main(int argc, char *argv[])
 
     // Get command line options and arguments
     Verilog2hifParseLine cLine(argc, argv);
-    _cLine = &cLine;
+    parse_line_ptr = &cLine;
 
-    std::string outputFile("");
+    std::string outputFile;
     std::vector<std::string> inputFiles;
 
     // Detect if verbose mode is active
@@ -110,11 +111,11 @@ int main(int argc, char *argv[])
 
     // Retrieve input files list (Verilog)
     inputFiles = cLine.getFiles();
-    for (Verilog2hifParseLine::Files::iterator it = inputFiles.begin(); it != inputFiles.end(); ++it) {
-        VerilogParser parser(*it, cLine);
+    for (auto &inputFile : inputFiles) {
+        VerilogParser parser(inputFile, cLine);
         if (!parser.parse(cLine.isParseOnly())) {
             std::string msg("Cannot parse file '");
-            msg = msg.append(*it);
+            msg = msg.append(inputFile);
             msg = msg.append("'");
             messageError(msg, nullptr, nullptr);
         }
@@ -124,12 +125,12 @@ int main(int argc, char *argv[])
     inputFiles = cLine.getAmsFiles();
     VerilogParser::setVerilogAms(true);
     bool needVAMSStandard = false;
-    for (Verilog2hifParseLine::Files::iterator it = inputFiles.begin(); it != inputFiles.end(); ++it) {
-        VerilogParser parser(*it, cLine);
+    for (auto &inputFile : inputFiles) {
+        VerilogParser parser(inputFile, cLine);
 
         if (!parser.parse(cLine.isParseOnly())) {
             std::string msg("Cannot parse file '");
-            msg = msg.append(*it);
+            msg = msg.append(inputFile);
             msg = msg.append("'");
             messageError(msg, nullptr, nullptr);
         }
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
     System *systOb = VerilogParser::buildSystemObject();
 
     if (cLine.isParseOnly() || cLine.isPrintOnly()) {
-        hif::writeFile(outputFile.c_str(), systOb, true);
+        hif::writeFile(outputFile, systOb, true);
 
         // Print translation warnings
         printUniqueWarnings("During translation, one or more warnings have been raised:");
@@ -149,8 +150,9 @@ int main(int argc, char *argv[])
         hif::manipulation::flushInstanceCache();
         hif::semantics::flushTypeCacheEntries();
         delete systOb;
-        if (debugStream != errorStream)
+        if (debugStream != errorStream) {
             delete debugStream;
+        }
 
         return 0;
     }
@@ -171,8 +173,9 @@ int main(int argc, char *argv[])
 
     // Marking AMS.
     messageInfo("Refining possible AMS units");
-    if (needVAMSStandard)
+    if (needVAMSStandard) {
         markAmsLanguage(systOb, hifLanguage);
+    }
     _stepFileManager.printStep(systOb, "markAmsLanguage");
 
     // Finally, check description
@@ -191,14 +194,14 @@ int main(int argc, char *argv[])
     int ret = hif::semantics::checkHif(systOb, hifLanguage, opt);
 
     if (ret == 0) {
-        hif::writeFile(outputFile.c_str(), systOb, true);
+        hif::writeFile(outputFile, systOb, true);
 
         messageInfo("HIF description written in: " + outputFile);
         messageInfo("HIF translation has been completed.");
     } else {
 #ifndef NDEBUG
-        hif::writeFile(outputFile.c_str(), systOb, true);
-        hif::writeFile(outputFile.c_str(), systOb, false);
+        hif::writeFile(outputFile, systOb, true);
+        hif::writeFile(outputFile, systOb, false);
 
         messageInfo("HIF description written in: " + outputFile);
 #endif
@@ -206,8 +209,9 @@ int main(int argc, char *argv[])
         messageInfo("HIF translation has not been completed.");
     }
 
-    if (debugStream != errorStream)
+    if (debugStream != errorStream) {
         delete debugStream;
+    }
 
     hif::application_utils::restoreLogHeader();
     hif::manipulation::flushInstanceCache();
@@ -223,7 +227,7 @@ int main(int argc, char *argv[])
 void postParsingRefinements(
     System *systOb,
     hif::semantics::VerilogSemantics *sem,
-    const bool needVAMSStandard,
+    bool needVAMSStandard,
     Verilog2hifParseLine &cLine)
 {
     // Add Verilog standard package

@@ -1,6 +1,7 @@
 /// @file verilog_parser.hpp
 /// @brief Header file for the VerilogParser class.
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -19,37 +20,37 @@ class VerilogParser;
 class VerilogParser
 {
 public:
-    VerilogParser(std::string fileName, const Verilog2hifParseLine &cLine);
+    VerilogParser(const std::string &fileName, const Verilog2hifParseLine &cLine);
     ~VerilogParser();
 
-    static hif::System *buildSystemObject();
-    static void setVerilogAms(const bool b);
-    static bool isVerilogAms();
+    static auto buildSystemObject() -> hif::System *;
+    static void setVerilogAms(bool b);
+    static auto isVerilogAms() -> bool;
 
     /*
      * Public functions
      * --------------------------------------------------------------------- */
-    bool parse(bool parseOnly);
-    bool isParseOnly();
-    void setCodeInfo(hif::Object *o, const bool recursive = false);
+    auto parse(bool parseOnly) -> bool;
+    auto isParseOnly() const -> bool;
+    void setCodeInfo(hif::Object *o, bool recursive = false);
     void setCodeInfo(hif::Object *o, keyword_data_t &keyword);
     void setCurrentBlockCodeInfo(keyword_data_t &keyword);
     void setCurrentBlockCodeInfo(hif::Object *other);
     void setCodeInfoFromCurrentBlock(hif::Object *o);
     void SetTimescale(hif::TimeValue *unit, hif::TimeValue *precision);
-    hif::HifFactory *getFactory();
+    auto getFactory() -> hif::HifFactory *;
 
     /*
      * VERILOG-Grammar related functions
      * --------------------------------------------------------------------- */
 
-    hif::Identifier *parse_Identifier(char *identifier);
+    auto parse_Identifier(char *identifier) -> hif::Identifier *;
 
     /* -----------------------------------------------------------------------
      *  VERILOG SOURCE TEXT
      * -----------------------------------------------------------------------
      */
-    hif::DesignUnit *parse_ModuleDeclarationStart(char *identifier);
+    auto parse_ModuleDeclarationStart(char *identifier) -> hif::DesignUnit *;
 
     void parse_ModuleDeclaration(
         hif::DesignUnit *designUnit,
@@ -67,71 +68,72 @@ public:
      *  PROCEDURAL BLOCKS AND ASSIGNMENTS
      * -----------------------------------------------------------------------
      */
-    hif::Assign *parse_AnalogVariableAssignment(hif::Value *lvalue, hif::Value *expression);
+    auto parse_AnalogVariableAssignment(hif::Value *lvalue, hif::Value *expression) -> hif::Assign *;
 
-    hif::Contents *parse_InitialConstruct(statement_t *statement);
+    auto parse_InitialConstruct(statement_t *statement) -> hif::Contents *;
 
-    hif::Assign *
-    parse_BlockingAssignment(hif::Value *variable_lvalue, hif::Value *expression, hif::Value *delay_or_event_control);
+    auto
+    parse_BlockingAssignment(hif::Value *variable_lvalue, hif::Value *expression, hif::Value *delay_or_event_control)
+        -> hif::Assign *;
 
-    hif::Assign *parse_NonBlockingAssignment(
-        hif::Value *variable_lvalue,
-        hif::Value *expression,
-        hif::Value *delay_or_event_control);
+    auto
+    parse_NonBlockingAssignment(hif::Value *variable_lvalue, hif::Value *expression, hif::Value *delay_or_event_control)
+        -> hif::Assign *;
 
-    hif::StateTable *parse_AlwaysConstruct(statement_t *statement);
+    auto parse_AlwaysConstruct(statement_t *statement) -> hif::StateTable *;
 
-    hif::StateTable *parse_AnalogConstruct(analog_statement_t *statement);
+    auto parse_AnalogConstruct(analog_statement_t *statement) -> hif::StateTable *;
 
-    hif::Assign *parse_Assignment(hif::Value *lvalue, hif::Value *expression);
+    auto parse_Assignment(hif::Value *lvalue, hif::Value *expression) -> hif::Assign *;
 
-    hif::BList<hif::Assign> *
-    parse_ContinuousAssign(hif::Value *delay3_opt, hif::BList<hif::Assign> *list_of_net_assignments);
+    static auto parse_ContinuousAssign(hif::Value *delay3_opt, hif::BList<hif::Assign> *list_of_net_assignments)
+        -> hif::BList<hif::Assign> *;
 
     /* -----------------------------------------------------------------------
      *  PORT_DECLARATIONS
      * -----------------------------------------------------------------------
      */
-    hif::Port *
-    parse_InoutDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier);
+    auto parse_InoutDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier)
+        -> hif::Port *;
 
-    hif::BList<hif::Port> *parse_InoutDeclaration(
+    auto parse_InoutDeclaration(
         discipline_and_modifiers_t *discipline_and_modifiers,
-        hif::BList<hif::Identifier> *list_of_identifiers);
+        hif::BList<hif::Identifier> *list_of_identifiers) -> hif::BList<hif::Port> *;
 
-    hif::Port *
-    parse_InputDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier);
+    auto parse_InputDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier)
+        -> hif::Port *;
 
-    hif::BList<hif::Port> *parse_InputDeclaration(
+    auto parse_InputDeclaration(
         discipline_and_modifiers_t *discipline_and_modifiers,
-        hif::BList<hif::Identifier> *list_of_identifiers);
+        hif::BList<hif::Identifier> *list_of_identifiers) -> hif::BList<hif::Port> *;
 
-    hif::Port *
-    parse_OutputDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier);
+    auto parse_OutputDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier)
+        -> hif::Port *;
 
-    hif::Port *
-    parse_OutputDeclaration(bool k_signed, hif::Range *range, char *identifier, hif::Value *initVal, const bool isReg);
+    auto parse_OutputDeclaration(bool k_signed, hif::Range *range, char *identifier, hif::Value *initVal, bool isReg)
+        -> hif::Port *;
 
-    hif::Port *parse_OutputDeclaration(hif::Type *output_variable_type, char *identifier, hif::Value *initVal);
+    auto parse_OutputDeclaration(hif::Type *output_variable_type, char *identifier, hif::Value *initVal) -> hif::Port *;
 
-    hif::BList<hif::Port> *parse_OutputDeclaration(
+    auto parse_OutputDeclaration(
         discipline_and_modifiers_t *discipline_and_modifiers,
-        hif::BList<hif::Identifier> *list_of_identifiers);
+        hif::BList<hif::Identifier> *list_of_identifiers) -> hif::BList<hif::Port> *;
 
-    hif::BList<hif::Port> *
-    parse_OutputDeclaration(hif::Type *output_variable_type, hif::BList<hif::Port> *list_of_variable_port_identifiers);
+    static auto parse_OutputDeclaration(
+        hif::Type *output_variable_type,
+        hif::BList<hif::Port> *list_of_variable_port_identifiers) -> hif::BList<hif::Port> *;
 
-    hif::BList<hif::Port> *parse_OutputDeclaration(
+    static auto parse_OutputDeclaration(
         bool k_signed,
         hif::Range *range,
         hif::BList<hif::Port> *list_of_variable_port_identifiers,
-        const bool isReg);
+        bool isReg) -> hif::BList<hif::Port> *;
 
-    hif::Port *parse_VariablePortIdentifier(char *identifier, hif::Value *initVal);
+    auto parse_VariablePortIdentifier(char *identifier, hif::Value *initVal) -> hif::Port *;
 
-    hif::Variable *parse_EventIdentifier(char *identifier, hif::BList<hif::Range> *dimension_list);
+    auto parse_EventIdentifier(char *identifier, hif::BList<hif::Range> *dimension_list) -> hif::Variable *;
 
-    hif::Port *parse_PortReference(char *identifier);
+    auto parse_PortReference(char *identifier) -> hif::Port *;
     //hif::Value * parse_PortReference( hif::Identifier * identifier, /* RANGE_EXPRESSION */ );
 
     /* -----------------------------------------------------------------------
@@ -139,434 +141,460 @@ public:
      * -----------------------------------------------------------------------
      */
 
-    hif::BList<hif::Declaration> *parse_BranchDeclaration(
+    auto parse_BranchDeclaration(
         hif::BList<hif::Value> *branch_terminal_list,
-        hif::BList<hif::Identifier> *list_of_identifiers);
-    hif::Member *parse_BranchTerminal(char *identifier, hif::Value *range_expression);
+        hif::BList<hif::Identifier> *list_of_identifiers) -> hif::BList<hif::Declaration> *;
+    auto parse_BranchTerminal(char *identifier, hif::Value *range_expression) -> hif::Member *;
 
     /* -----------------------------------------------------------------------
      *  MODULE PARAMETER DECLARATIONS
      * -----------------------------------------------------------------------
      */
-    hif::BList<hif::ValueTP> *parse_ParameterDeclaration(
+    auto parse_ParameterDeclaration(
         bool k_signed,
         hif::Range *range,
         hif::BList<hif::Assign> *list_of_param_assignments,
-        hif::Type *parameter_type);
+        hif::Type *parameter_type) -> hif::BList<hif::ValueTP> *;
 
-    hif::BList<hif::Const> *parse_LocalParameterDeclaration(
+    auto parse_LocalParameterDeclaration(
         bool K_signed_opt,
         hif::Range *range_opt,
         hif::BList<hif::Assign> *list_of_param_assignments,
-        hif::Type *parameter_type);
+        hif::Type *parameter_type) -> hif::BList<hif::Const> *;
 
     /* -----------------------------------------------------------------------
      *  DECLARATION ASSIGNMENTS
      * -----------------------------------------------------------------------
      */
-    hif::Assign *parse_ParamAssignment(
+    auto parse_ParamAssignment(
         char *identifier,
         hif::Value *expr,
         hif::Range *range_opt                          = nullptr,
-        hif::BList<hif::Value *> *value_range_list_opt = nullptr);
+        hif::BList<hif::Value *> *value_range_list_opt = nullptr) -> hif::Assign *;
 
     /* -----------------------------------------------------------------------
      *  DECLARATION RANGES
      * -----------------------------------------------------------------------
      */
-    hif::Range *parse_Range(hif::Value *lbound, hif::Value *rbound);
+    auto parse_Range(hif::Value *lbound, hif::Value *rbound) -> hif::Range *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS - NUMBERS
      * -----------------------------------------------------------------------
      */
-    hif::Value *parse_UnsignedNumber(number_t &DEC_NUMBER);
-    hif::Value *parse_BasedNumber(number_t &BASED_NUMBER);
-    hif::Value *parse_DecNumber(number_t &BASED_NUMBER);
-    hif::Value *parse_DecBasedNumber(number_t &DEC_NUMBER, number_t &BASED_NUMBER);
-    hif::Value *parse_RealTime(real_number_t &REALTIME);
+    auto parse_UnsignedNumber(number_t &DEC_NUMBER) -> hif::Value *;
+    auto parse_BasedNumber(number_t &BASED_NUMBER) -> hif::Value *;
+    auto parse_DecNumber(number_t &BASED_NUMBER) -> hif::Value *;
+    auto parse_DecBasedNumber(number_t &DEC_NUMBER, number_t &BASED_NUMBER) -> hif::Value *;
+    auto parse_RealTime(real_number_t &REALTIME) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS
      * -----------------------------------------------------------------------
      */
-    hif::Value *parse_ExpressionUnaryOperator(hif::Operator unary_op, hif::Value *primary, const bool negate = false);
+    auto
+    parse_ExpressionUnaryOperator(hif::Operator unary_op, hif::Value *primary, bool negate = false) -> hif::Value *;
 
-    hif::Value *parse_ExpressionBinaryOperator(
+    auto parse_ExpressionBinaryOperator(
         hif::Value *expression1,
         hif::Operator binary_op,
         hif::Value *expression2,
-        const bool negate = false);
+        bool negate = false) -> hif::Value *;
 
-    hif::Value *
-    parse_ExpressionTernaryOperator(hif::Value *expression1, hif::Value *expression2, hif::Value *expression3);
+    auto parse_ExpressionTernaryOperator(hif::Value *expression1, hif::Value *expression2, hif::Value *expression3)
+        -> hif::Value *;
 
-    hif::Value *parse_ExpressionNorOperator(hif::Value *primary);
+    static auto parse_ExpressionNorOperator(hif::Value *primary) -> hif::Value *;
 
-    hif::Value *parse_RangeExpression(hif::Value *lbound, hif::Value *rbound);
+    auto parse_RangeExpression(hif::Value *lbound, hif::Value *rbound) -> hif::Value *;
 
-    hif::Value *parse_RangeExpressionPO_POS(hif::Value *lbound, hif::Value *rbound);
+    auto parse_RangeExpressionPO_POS(hif::Value *lbound, hif::Value *rbound) -> hif::Value *;
 
-    hif::Value *parse_RangeExpressionPO_NEG(hif::Value *lbound, hif::Value *rbound);
+    auto parse_RangeExpressionPO_NEG(hif::Value *lbound, hif::Value *rbound) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  EVENT STATEMENTS
      * -----------------------------------------------------------------------
      */
-    hif::ValueStatement *
-    parse_EventTrigger(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *bracket_expression_list);
+    auto parse_EventTrigger(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *bracket_expression_list)
+        -> hif::ValueStatement *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS - PRIMARIES
      * -----------------------------------------------------------------------
      */
-    hif::Value *parse_PrimaryListOfMemberOrSlice(char *identifier, hif::BList<hif::Value> *range_expression_list);
+    auto
+    parse_PrimaryListOfMemberOrSlice(char *identifier, hif::BList<hif::Value> *range_expression_list) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS - CONCATENATIONS
      * -----------------------------------------------------------------------
      */
-    hif::Value *parse_Concatenation(hif::BList<hif::Value> *value_list);
+    auto parse_Concatenation(hif::BList<hif::Value> *value_list) -> hif::Value *;
 
-    hif::Value *parse_MultipleConcatenation(hif::Value *expression, hif::Value *concatenation);
+    auto parse_MultipleConcatenation(hif::Value *expression, hif::Value *concatenation) -> hif::Value *;
 
-    hif::Value *parse_ArrayInitialization(hif::BList<hif::Value> *value_list);
+    static auto parse_ArrayInitialization(hif::BList<hif::Value> *value_list) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  GENERAL - IDENTIFIERS
      * -----------------------------------------------------------------------
      */
-    hif::Value *
-    parse_HierarchicalIdentifier(hif::Value *hierarchical_identifier, hif::Value *hierarchical_identifier_item);
+    auto parse_HierarchicalIdentifier(hif::Value *hierarchical_identifier, hif::Value *hierarchical_identifier_item)
+        -> hif::Value *;
 
-    hif::Value *parse_HierarchicalIdentifierItem(char *identifier);
+    auto parse_HierarchicalIdentifierItem(char *identifier) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  TYPE_DECLARATIONS
      * -----------------------------------------------------------------------
      */
 
-    hif::Signal *parse_Type(char *identifier, hif::BList<hif::Range> *non_empty_dimension_list);
+    auto parse_Type(char *identifier, hif::BList<hif::Range> *non_empty_dimension_list) -> hif::Signal *;
 
-    hif::Signal *parse_Type(char *identifier, hif::Value *expression);
+    auto parse_Type(char *identifier, hif::Value *expression) -> hif::Signal *;
 
-    hif::Signal *parse_Type(char *identifier);
+    auto parse_Type(char *identifier) -> hif::Signal *;
 
-    hif::BList<hif::Declaration> *parse_EventDeclaration(hif::BList<hif::Variable> *list_of_variable_identifiers);
+    auto
+    parse_EventDeclaration(hif::BList<hif::Variable> *list_of_variable_identifiers) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *parse_IntegerDeclaration(hif::BList<hif::Signal> *list_of_variable_identifiers);
+    static auto
+    parse_IntegerDeclaration(hif::BList<hif::Signal> *list_of_variable_identifiers) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *parse_RealDeclaration(hif::BList<hif::Signal> *list_of_real_identifiers);
+    auto parse_RealDeclaration(hif::BList<hif::Signal> *list_of_real_identifiers) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *parse_RegDeclaration(
+    static auto parse_RegDeclaration(
         discipline_identifier_signed_range_t *discipline_identifier_signed_range,
-        hif::BList<hif::Signal> *list_of_variable_identifiers);
+        hif::BList<hif::Signal> *list_of_variable_identifiers) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *parse_TimeDeclaration(hif::BList<hif::Signal> *list_of_variable_identifiers);
+    static auto
+    parse_TimeDeclaration(hif::BList<hif::Signal> *list_of_variable_identifiers) -> hif::BList<hif::Declaration> *;
 
-    hif::BList<hif::Declaration> *parse_NetDeclaration(
+    auto parse_NetDeclaration(
         bool is_signed,
         hif::Range *range,
         std::list<net_ams_decl_identifier_assignment_t *> *identifiers_or_assign,
-        hif::Type *explicitType = nullptr);
+        hif::Type *explicitType = nullptr) -> hif::BList<hif::Declaration> *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS - FUNCTION CALLS
      * -----------------------------------------------------------------------
      */
 
-    hif::FunctionCall *parse_InitialOrFinalStep(const std::string &name, std::list<std::string> *string_list);
+    auto parse_InitialOrFinalStep(const std::string &name, std::list<std::string> *string_list) -> hif::FunctionCall *;
 
-    hif::Value *parse_FunctionCall(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *expression_list);
+    auto
+    parse_FunctionCall(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *expression_list) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  EXPRESSIONS - NATURE ATTRIBUTE REFERENCE
      * -----------------------------------------------------------------------
      */
-    hif::Value *parse_NatureAttributeReference(
+    auto parse_NatureAttributeReference(
         hif::Value *hierarchical_identifier,
         const std::string &fieldName,
-        hif::Value *nature_attribute_identifier);
+        hif::Value *nature_attribute_identifier) -> hif::Value *;
 
-    hif::Value *parse_AmsFlowOfPort(hif::Value *hierarchical_identifier, hif::Value *expression_list);
+    auto parse_AmsFlowOfPort(hif::Value *hierarchical_identifier, hif::Value *expression_list) -> hif::Value *;
 
     /* -----------------------------------------------------------------------
      *  CASE STATEMENTS
      * -----------------------------------------------------------------------
      */
-    hif::Switch *parse_CaseStatement(
-        hif::Value *expression,
-        hif::BList<hif::SwitchAlt> *case_item_list,
-        const hif::CaseSemantics caseSem);
+    auto
+    parse_CaseStatement(hif::Value *expression, hif::BList<hif::SwitchAlt> *case_item_list, hif::CaseSemantics caseSem)
+        -> hif::Switch *;
 
-    hif::SwitchAlt *parse_CaseItem(hif::BList<hif::Value> *expression_list, statement_t *statement_or_null);
+    auto parse_CaseItem(hif::BList<hif::Value> *expression_list, statement_t *statement_or_null) -> hif::SwitchAlt *;
 
-    hif::SwitchAlt *
-    parse_AnalogCaseItem(hif::BList<hif::Value> *expression_list, analog_statement_t *analog_statement_or_null);
+    auto parse_AnalogCaseItem(hif::BList<hif::Value> *expression_list, analog_statement_t *analog_statement_or_null)
+        -> hif::SwitchAlt *;
 
     /* -----------------------------------------------------------------------
      *  CONDITIONAL STATEMENTS
      * -----------------------------------------------------------------------
      */
 
-    hif::If *parse_ConditionalStatement(hif::If *ifStatement);
+    auto parse_ConditionalStatement(hif::If *ifStatement) -> hif::If *;
 
-    hif::If *parse_ConditionalStatement(
+    auto parse_ConditionalStatement(
         hif::Value *expression,
         statement_t *statement_or_null,
-        statement_t *else_statement_or_null);
+        statement_t *else_statement_or_null) -> hif::If *;
 
-    hif::If *parse_AnalogConditionalStatement(
+    auto parse_AnalogConditionalStatement(
         hif::Value *expression,
         analog_statement_t *analog_statement_or_null,
-        analog_statement_t *else_analog_statement_or_null);
+        analog_statement_t *else_analog_statement_or_null) -> hif::If *;
 
-    hif::BList<hif::IfAlt> *parse_ElseIfStatementOrNullList(
+    auto parse_ElseIfStatementOrNullList(
         hif::BList<hif::IfAlt> *elseif_statement_or_null_list,
         hif::Value *expression,
-        statement_t *statement_or_null);
+        statement_t *statement_or_null) -> hif::BList<hif::IfAlt> *;
 
     /* -----------------------------------------------------------------------
      *  GENERATE STATEMENTS
      * -----------------------------------------------------------------------
      */
 
-    hif::BList<hif::Generate> *parse_IfGenerateConstruct(
+    auto parse_IfGenerateConstruct(
         hif::Value *expression,
         generate_block_t *generate_block_or_null_if,
-        generate_block_t *generate_block_or_null_else);
+        generate_block_t *generate_block_or_null_else) -> hif::BList<hif::Generate> *;
 
-    hif::BList<hif::Generate> *parse_LoopGenerateConstruct(
+    auto parse_LoopGenerateConstruct(
         hif::Assign *genvar_initialization,
         hif::Value *expression,
         hif::Assign *genvar_iteration,
-        generate_block_t *generate_block);
+        generate_block_t *generate_block) -> hif::BList<hif::Generate> *;
 
     /* -----------------------------------------------------------------------
      *  TIMING CONTROL STATEMENTS
      * -----------------------------------------------------------------------
      */
 
-    statement_t *parse_ProceduralTimingControlStatement(
+    static auto parse_ProceduralTimingControlStatement(
         procedural_timing_control_t *procedural_timing_control,
-        statement_t *stat_or_null);
+        statement_t *stat_or_null) -> statement_t *;
 
-    analog_statement_t *
-    parse_AnalogEventControlStatement(analog_event_control_t *event_control, analog_statement_t *stat_or_null);
+    auto parse_AnalogEventControlStatement(analog_event_control_t *event_control, analog_statement_t *stat_or_null)
+        -> analog_statement_t *;
 
-    statement_t *parse_WaitStatement(hif::Value *expression, statement_t *statement_or_null);
+    auto parse_WaitStatement(hif::Value *expression, statement_t *statement_or_null) -> statement_t *;
 
-    analog_event_expression_t *
-    parseOrAnalogEventExpression(analog_event_expression_t *e1, analog_event_expression_t *e2);
+    auto parseOrAnalogEventExpression(analog_event_expression_t *e1, analog_event_expression_t *e2)
+        -> analog_event_expression_t *;
 
     /* -----------------------------------------------------------------------
      *  LOOPING STATEMENTS
      * -----------------------------------------------------------------------
      */
-    template <typename T> hif::While *parse_LoopStatementWhile(hif::Value *expression, T *statement);
+    template <typename T> auto parse_LoopStatementWhile(hif::Value *expression, T *statement) -> hif::While *;
     template <typename T>
-    hif::For *parse_LoopStatementFor(
+    auto parse_LoopStatementFor(
         hif::Assign *init_variable_assign,
         hif::Value *expression,
         hif::Assign *step_variable_assign,
-        T *statement);
-    template <typename T> hif::For *parse_LoopStatementRepeat(hif::Value *expression, T *statement);
-    hif::While *parse_LoopStatementForever(statement_t *statement);
+        T *statement) -> hif::For *;
+    template <typename T> auto parse_LoopStatementRepeat(hif::Value *expression, T *statement) -> hif::For *;
+    auto parse_LoopStatementForever(statement_t *statement) -> hif::While *;
 
     /* -----------------------------------------------------------------------
      *  TASK DECLARATIONS
      * -----------------------------------------------------------------------
      */
-    hif::Procedure *parse_TaskDeclaration(
+    auto parse_TaskDeclaration(
         bool isAutomatic,
         char *identifier,
         std::list<task_item_declaration_t *> *task_item_declaration_list,
-        statement_t *statement_or_null);
+        statement_t *statement_or_null) -> hif::Procedure *;
 
     //    hif::Procedure * parse_TaskDeclaration( hif::Identifier * identifier,
     //            hif::BList<hif::Port> * task_port_list,
     //            hif::BList<block_item_declaration_t> * block_item_declaration_list,
     //            hif::BList<hif::Action> * statements);
 
-    hif::Port *parse_TfDeclaration(
+    auto parse_TfDeclaration(
         hif::PortDirection dir,
         bool isSigned,
         hif::Range *range_opt,
         hif::Identifier *identifier,
-        hif::Type *task_port_type);
+        hif::Type *task_port_type) -> hif::Port *;
 
-    hif::BList<hif::Port> *parse_TfDeclaration(
+    auto parse_TfDeclaration(
         hif::PortDirection dir,
         bool isSigned,
         hif::Range *range_opt,
         hif::BList<hif::Identifier> *list_of_identifiers,
-        hif::Type *task_port_type);
+        hif::Type *task_port_type) -> hif::BList<hif::Port> *;
 
-    hif::BList<hif::Signal> *parse_BlockItemDeclaration_Reg(
+    static auto parse_BlockItemDeclaration_Reg(
         bool signed_opt,
         hif::Range *range_opt,
-        hif::BList<hif::Signal> *list_of_block_variable_identifiers);
+        hif::BList<hif::Signal> *list_of_block_variable_identifiers) -> hif::BList<hif::Signal> *;
 
-    hif::BList<hif::Signal> *
-    parse_BlockItemDeclaration_Integer(hif::BList<hif::Signal> *list_of_block_variable_identifiers);
+    static auto parse_BlockItemDeclaration_Integer(hif::BList<hif::Signal> *list_of_block_variable_identifiers)
+        -> hif::BList<hif::Signal> *;
 
-    hif::Signal *parse_BlockVariableType(char *identifier, hif::BList<hif::Range> *dimension_list);
+    auto parse_BlockVariableType(char *identifier, hif::BList<hif::Range> *dimension_list) -> hif::Signal *;
 
-    hif::StateTable *parse_AnalogSeqBlock(
+    auto parse_AnalogSeqBlock(
         const char *block_identifier,
         hif::BList<hif::Declaration> *analog_block_item_declaration_list,
-        hif::StateTable *analog_statement_no_empty_list);
+        hif::StateTable *analog_statement_no_empty_list) -> hif::StateTable *;
 
-    hif::Break *parse_DisableStatement(hif::Value *hierarchical_identifier);
+    auto parse_DisableStatement(hif::Value *hierarchical_identifier) -> hif::Break *;
 
     /* -----------------------------------------------------------------------
      *  FUNCTION DECLARATIONS
      * -----------------------------------------------------------------------
      */
-    hif::Function *parse_FunctionDeclaration(
+    auto parse_FunctionDeclaration(
         hif::Type *function_range_or_type,
         char *identifier,
         std::list<function_item_declaration_t *> *function_item_declaration_list,
-        statement_t *statements);
+        statement_t *statements) -> hif::Function *;
 
-    hif::Function *parse_FunctionDeclaration(
+    auto parse_FunctionDeclaration(
         hif::Type *function_range_or_type,
         char *identifier,
         hif::BList<hif::Port> *function_port_list,
         std::list<block_item_declaration_t *> *block_item_declaration_list,
-        statement_t *statements);
+        statement_t *statements) -> hif::Function *;
 
     /* -----------------------------------------------------------------------
      *  FUNCTION/PROCEDURE CALLS
      * -----------------------------------------------------------------------
      */
-    hif::FunctionCall *parse_BranchProbeFunctionCall(
+    auto parse_BranchProbeFunctionCall(
         hif::Value *nature_attribute_identifier,
         hif::Value *hierarchical_identifier1,
-        hif::Value *hierarchical_identifier2);
+        hif::Value *hierarchical_identifier2) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_AnalogDifferentialFunctionCall(
+    auto parse_AnalogDifferentialFunctionCall(
         const char *function_name,
         hif::Value *expression1,
         hif::Value *expression2 = nullptr,
         hif::Value *expression3 = nullptr,
-        hif::Value *expression4 = nullptr);
+        hif::Value *expression4 = nullptr) -> hif::FunctionCall *;
 
-    hif::ProcedureCall *parse_ContributionStatement(hif::Value *branch_probe_function_call, hif::Value *expression);
+    auto
+    parse_ContributionStatement(hif::Value *branch_probe_function_call, hif::Value *expression) -> hif::ProcedureCall *;
 
-    hif::ProcedureCall *parse_IndirectContributionStatement(
+    auto parse_IndirectContributionStatement(
         hif::Value *branch_probe_function_call,
         hif::Value *indirect_expression,
-        hif::Value *expression);
+        hif::Value *expression) -> hif::ProcedureCall *;
 
-    hif::Value *parse_AnalogBuiltInFunctionCall(
+    auto parse_AnalogBuiltInFunctionCall(
         hif::Identifier *analog_built_in_function_name,
         hif::Value *analog_expression1,
-        hif::Value *analog_expression2);
+        hif::Value *analog_expression2) -> hif::Value *;
 
-    hif::FunctionCall *parse_analysisFunctionCall(std::list<std::string> *string_list);
+    auto parse_analysisFunctionCall(std::list<std::string> *string_list) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_AnalogFilterFunctionCall(
+    auto parse_AnalogFilterFunctionCall(
         const char *function_name,
         hif::Value *expression1,
         hif::Value *expression2,
         hif::Value *expression3,
         hif::Value *expression4,
         hif::Value *expression5,
-        hif::Value *expression6);
+        hif::Value *expression6) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_AnalogFilterFunctionCallArg(
+    auto parse_AnalogFilterFunctionCallArg(
         const char *function_name,
         hif::Value *expression1,
         analog_filter_function_arg_t *expression2,
         analog_filter_function_arg_t *expression3,
         hif::Value *expression4,
         hif::Value *expression5,
-        hif::Value *expression6);
+        hif::Value *expression6) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_AnalogSmallSignalFunctionCall(
+    auto parse_AnalogSmallSignalFunctionCall(
         const char *function_name,
         hif::Value *expression1,
         hif::Value *expression2,
-        hif::Value *expression3);
+        hif::Value *expression3) -> hif::FunctionCall *;
 
-    hif::FunctionCall *parse_analogEventFunction(
+    auto parse_analogEventFunction(
         const char *function_name,
         hif::Value *expression1,
         hif::Value *expression2 = nullptr,
         hif::Value *expression3 = nullptr,
         hif::Value *expression4 = nullptr,
-        hif::Value *expression5 = nullptr);
+        hif::Value *expression5 = nullptr) -> hif::FunctionCall *;
 
-    event_expression_t *parse_EventExpressionDriverUpdate(hif::Value *expression);
+    auto parse_EventExpressionDriverUpdate(hif::Value *expression) -> event_expression_t *;
 
-    hif::ProcedureCall *parse_SystemTaskEnable(
+    auto parse_SystemTaskEnable(
         const char *systemIdentifier,
         hif::Value *expression_opt,
-        hif::BList<hif::Value> *expression_comma_list);
+        hif::BList<hif::Value> *expression_comma_list) -> hif::ProcedureCall *;
 
-    hif::ProcedureCall *
-    parse_TaskEnable(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *comma_expression_list);
+    auto parse_TaskEnable(hif::Value *hierarchical_identifier, hif::BList<hif::Value> *comma_expression_list)
+        -> hif::ProcedureCall *;
 
     /* -----------------------------------------------------------------------
      *  MODULE INSTATIATION
      * -----------------------------------------------------------------------
      */
-    hif::PortAssign *parse_NamedPortConnectionList(char *identifier, hif::Value *expression_opt);
+    auto parse_NamedPortConnectionList(char *identifier, hif::Value *expression_opt) -> hif::PortAssign *;
 
-    module_instance_and_net_ams_decl_identifier_assignment_t *
-    parse_ModuleInstance(std::list<net_ams_decl_identifier_assignment_t *> *net_ams_decl_identifier_assignment_list);
+    static auto
+    parse_ModuleInstance(std::list<net_ams_decl_identifier_assignment_t *> *net_ams_decl_identifier_assignment_list)
+        -> module_instance_and_net_ams_decl_identifier_assignment_t *;
 
-    module_instance_and_net_ams_decl_identifier_assignment_t *parse_ModuleInstance(
+    auto parse_ModuleInstance(
         hif::Identifier *name_of_module_instance,
-        list_of_port_connections_t *list_of_port_connections_opt);
+        list_of_port_connections_t *list_of_port_connections_opt)
+        -> module_instance_and_net_ams_decl_identifier_assignment_t *;
 
-    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *parse_ModuleInstantiation(
+    auto parse_ModuleInstantiation(
         char *identifier,
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list);
+        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
+        -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
-    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *parse_ModuleInstantiation(
+    auto parse_ModuleInstantiation(
         char *identifier,
         hif::BList<hif::ValueTPAssign> *parameter_value_assignment,
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list);
+        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
+        -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
-    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *parse_ModuleInstantiation(
+    auto parse_ModuleInstantiation(
         char *identifier,
         hif::Range *range_opt,
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list);
+        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
+        -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
-    hif::BList<hif::ValueTPAssign> *
-    parse_ParameterValueAssignment(list_of_parameter_assignment_t *list_of_parameter_assignment);
+    auto parse_ParameterValueAssignment(list_of_parameter_assignment_t *list_of_parameter_assignment)
+        -> hif::BList<hif::ValueTPAssign> *;
 
-    hif::ValueTPAssign *parse_NamedParameterAssignment(char *identifier, hif::Value *mintypmax_expression_opt);
+    auto parse_NamedParameterAssignment(char *identifier, hif::Value *mintypmax_expression_opt) -> hif::ValueTPAssign *;
 
-    module_or_generate_item_t *parse_ModuleOrGenerateItem(
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instantiation);
+    static auto parse_ModuleOrGenerateItem(std::list<module_instance_and_net_ams_decl_identifier_assignment_t *>
+                                               *module_instantiation) -> module_or_generate_item_t *;
 
-    hif::Variable *parse_NatureBinding(char *identifier, const bool isPotential);
+    /* -----------------------------------------------------------------------
+     *  GATE PRIMITIVE INSTATIATION
+     * -----------------------------------------------------------------------
+     */
+    static auto parse_GateTerminalInstance(hif::Identifier *name, hif::Value *output, hif::BList<hif::Value> *inputs)
+        -> gate_terminal_instance_t *;
+
+    static auto parse_GateTerminalInstanceMultiOutput(
+        hif::Identifier *name,
+        hif::BList<hif::Value> *outputs,
+        hif::Value *input) -> gate_terminal_instance_t *;
+
+    auto parse_GateInstantiation(gate_primitive_kind_t kind, std::list<gate_terminal_instance_t *> *instances)
+        -> hif::BList<hif::Assign> *;
+
+    static auto parse_NatureBinding(char *identifier, bool isPotential) -> hif::Variable *;
     void parse_DisciplineDeclaration(char *identifier, hif::BList<hif::Variable> *discipline_item_list);
 
-    hif::Function *parse_AnalogFunctionDeclaration(
-        const bool isInteger,
+    auto parse_AnalogFunctionDeclaration(
+        bool isInteger,
         char *identifier,
         analog_function_item_declaration_t *analog_function_item_declaration_list,
-        analog_statement_t *analog_function_statement);
+        analog_statement_t *analog_function_statement) -> hif::Function *;
 
-    hif::BList<hif::Declaration> *parse_GenvarDeclaration(hif::BList<hif::Identifier> *list_of_identifiers);
+    auto parse_GenvarDeclaration(hif::BList<hif::Identifier> *list_of_identifiers) -> hif::BList<hif::Declaration> *;
 
     /* -----------------------------------------------------------------------
      *  PARALLEL AND SEQUENTIAL BLOCKS
      * -----------------------------------------------------------------------
      */
-    statement_t *parse_SeqBlock(
+    auto parse_SeqBlock(
         char *identifier,
         std::list<block_item_declaration_t *> *declarations,
-        std::list<statement_t *> *statements);
+        std::list<statement_t *> *statements) -> statement_t *;
 
-    analog_statement_t *parse_AnalogSeqBlock(
+    static auto parse_AnalogSeqBlock(
         char *identifier,
         hif::BList<hif::Declaration> *declarations,
-        std::list<analog_statement_t *> *statements);
+        std::list<analog_statement_t *> *statements) -> analog_statement_t *;
 
     /* -----------------------------------------------------------------------
      *  SPECIFY SECTION
@@ -575,29 +603,30 @@ public:
      * -----------------------------------------------------------------------
      */
 
-    std::list<specify_item_t *> *parse_SpecifyBlock(std::list<specify_item_t *> *items);
+    static auto parse_SpecifyBlock(std::list<specify_item_t *> *items) -> std::list<specify_item_t *> *;
 
     /* -----------------------------------------------------------------------
      *  SYSTEM TIMING CHECK COMMANDS
      * -----------------------------------------------------------------------
      */
 
-    hif::Value *parse_TimingCheckEvent(
+    static auto parse_TimingCheckEvent(
         timing_check_event_control_t *timing_check_event_control_opt,
-        specify_terminal_descriptor_t *specify_terminal_descriptor);
+        specify_terminal_descriptor_t *specify_terminal_descriptor) -> hif::Value *;
 
-    hif::ProcedureCall *parse_TimingCheck(
+    auto parse_TimingCheck(
         const char *name,
         hif::Value *dataEvent,
         hif::Value *referenceEvent,
         hif::Value *timingCheckLimit,
-        hif::Identifier *notifier);
+        hif::Identifier *notifier) -> hif::ProcedureCall *;
 
-    specify_terminal_descriptor_t *parse_SpecifyTerminalDescriptor(char *identifier, hif::Value *range_expression);
+    static auto
+    parse_SpecifyTerminalDescriptor(char *identifier, hif::Value *range_expression) -> specify_terminal_descriptor_t *;
 
 private:
     VerilogParser(const VerilogParser &);
-    VerilogParser &operator=(const VerilogParser &);
+    auto operator=(const VerilogParser &) -> VerilogParser &;
 
     std::string _fileName;
     unsigned int _tmpCustomLineNumber;
@@ -632,7 +661,8 @@ private:
 
     void _buildActionListFromAnalogStatement(analog_statement_t *statement, hif::BList<hif::Action> &actionList);
 
-    void _buildSensitivityFromEventControl(event_control_t *ect, hif::BList<hif::Value> &sensitivity, bool &allSignals);
+    static void
+    _buildSensitivityFromEventControl(event_control_t *ect, hif::BList<hif::Value> &sensitivity, bool &allSignals);
 
     void _buildSensitivityFromAnalogEventControl(
         analog_event_control_t *ect,
@@ -644,7 +674,7 @@ private:
         hif::DesignUnit *du,
         module_or_generate_item_declaration_t *decls);
 
-    hif::Type *_composeAmsType(hif::Type *portType, hif::Type *declarationType);
+    auto _composeAmsType(hif::Type *portType, hif::Type *declarationType) -> hif::Type *;
 
-    hif::Value *_makeValueFromFilter(analog_filter_function_arg_t *arg);
+    auto _makeValueFromFilter(analog_filter_function_arg_t *arg) -> hif::Value *;
 };

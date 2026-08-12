@@ -1,6 +1,7 @@
 /// @file lexor_keyword.hpp
 /// @brief Lexor keyword header file.
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -14,4 +15,4 @@
 /// @param str The keyword string.
 /// @param len The keyword length.
 /// @return The keyword code.
-extern int lexor_keyword_code(const char *str, unsigned len);
+extern auto lexor_keyword_code(const char *str, unsigned len) -> int;

@@ -1,6 +1,7 @@
 /// @file FixDescription_3.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -29,11 +30,11 @@ using namespace hif;
 // ///////////////////////////////////////////////////////////////////
 // Support
 // ///////////////////////////////////////////////////////////////////
-typedef hif::manipulation::ViewSet Views;
-typedef std::set<ViewReference *> ViewRefs;
-typedef std::set<DataDeclaration *> DataDeclarations;
+using Views            = hif::manipulation::ViewSet;
+using ViewRefs         = std::set<ViewReference *>;
+using DataDeclarations = std::set<DataDeclaration *>;
 
-BaseContents *_getBaseContents(Declaration *context)
+auto getBaseContents(Declaration *context) -> BaseContents *
 {
     Port *p = dynamic_cast<Port *>(context);
     if (p != nullptr) {
@@ -43,20 +44,22 @@ BaseContents *_getBaseContents(Declaration *context)
         return v->getContents();
     }
 
-    BaseContents *bc = getNearestParent<BaseContents>(context);
+    auto *bc = getNearestParent<BaseContents>(context);
     messageAssert(bc != nullptr, "Contents not found.", p, nullptr);
     return bc;
 }
 
-bool _skipStandardFunctionCall(Object *o, const hif::HifQueryBase *q)
+auto skipStandardFunctionCall(Object *o, const hif::HifQueryBase *q) -> bool
 {
-    FunctionCall *fc = dynamic_cast<FunctionCall *>(o);
-    if (fc == nullptr)
+    auto *fc = dynamic_cast<FunctionCall *>(o);
+    if (fc == nullptr) {
         return false;
+    }
 
     Function *foo = hif::semantics::getDeclaration(fc, q->sem);
-    if (foo == nullptr)
+    if (foo == nullptr) {
         return true;
+    }
 
     return !hif::declarationIsPartOfStandard(foo);
 }
@@ -65,20 +68,21 @@ bool _skipStandardFunctionCall(Object *o, const hif::HifQueryBase *q)
 // prerefine fixes
 // ///////////////////////////////////////////////////////////////////
 
-typedef hif::semantics::ReferencesMap RefMap;
-typedef hif::semantics::ReferencesSet RefSet;
+using RefMap = hif::semantics::ReferencesMap;
+using RefSet = hif::semantics::ReferencesSet;
 
-void _fixUnreferenced(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/)
+void fixUnreferenced(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/)
 {
     RefSet trash;
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
-        Signal *sig = dynamic_cast<Signal *>(i->first);
+    for (auto i = refMap.begin(); i != refMap.end(); ++i) {
+        auto *sig = dynamic_cast<Signal *>(i->first);
 
-        if (sig == nullptr || !i->second.empty())
+        if (sig == nullptr || !i->second.empty()) {
             continue;
+        }
 
         // sig w/o refs is refined to var
-        Variable *var = new Variable();
+        auto *var = new Variable();
         var->setName(sig->getName());
         var->setType(sig->setType(nullptr));
         var->setValue(sig->setValue(nullptr));
@@ -89,92 +93,95 @@ void _fixUnreferenced(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem
     }
 
     // clean signals moved to variables.
-    for (RefSet::iterator i = trash.begin(); i != trash.end(); ++i) {
-        refMap.erase(static_cast<Declaration *>(*i));
-        delete *i;
+    for (auto *i : trash) {
+        refMap.erase(dynamic_cast<Declaration *>(i));
+        delete i;
     }
 }
 
-bool _checkSubNodeOfTop(Port *p, Views &topViews)
+auto checkSubNodeOfTop(Port *p, Views &topViews) -> bool
 {
-    for (Views::iterator i = topViews.begin(); i != topViews.end(); ++i) {
-        View *top = *i;
-        if (hif::isSubNode(p, top))
+    for (auto *top : topViews) {
+        if (hif::isSubNode(p, top)) {
             return true;
+        }
     }
     return false;
 }
 
-void _fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
+void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
 {
     hif::HifFactory factory(sem);
 
     // Output ports assigned by continuous assignments are replaced with explicit
     // processes.
     hif::application_utils::WarningList fixed;
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
+    for (auto i = refMap.begin(); i != refMap.end(); ++i) {
         Port *p = dynamic_cast<Port *>(i->first);
-        if (p == nullptr)
+        if (p == nullptr) {
             continue;
-        if (p->getDirection() != dir_out && p->getDirection() != dir_inout)
+        }
+        if (p->getDirection() != dir_out && p->getDirection() != dir_inout) {
             continue;
-        const bool inTopView = _checkSubNodeOfTop(p, topViews);
+        }
+        bool inTopView = checkSubNodeOfTop(p, topViews);
         RefSet &portRefs     = i->second;
 
         RefSet continuousTargets;
         RefSet readRefs;
         RefSet nonblockingSet;
         RefSet portassSet;
-        for (RefSet::iterator j = portRefs.begin(); j != portRefs.end(); ++j) {
-            Object *symb        = *j;
-            PortAssign *portAss = dynamic_cast<PortAssign *>(symb);
+        for (auto *symb : portRefs) {
+            auto *portAss = dynamic_cast<PortAssign *>(symb);
             if (portAss != nullptr) {
                 portassSet.insert(symb);
                 continue;
             }
 
-            const bool isRead = !hif::manipulation::isInLeftHandSide(symb);
+            bool isRead = !hif::manipulation::isInLeftHandSide(symb);
             if (isRead) {
                 readRefs.insert(symb);
                 continue;
             }
 
-            Assign *ass = hif::getNearestParent<Assign>(symb);
+            auto *ass = hif::getNearestParent<Assign>(symb);
             messageAssert(ass != nullptr, "Cannot find parent assign", symb, sem);
 
-            GlobalAction *gact          = hif::getNearestParent<GlobalAction>(symb);
-            const bool isBlockingAssign = gact != nullptr || !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
+            auto *gact                  = hif::getNearestParent<GlobalAction>(symb);
+            bool isBlockingAssign = gact != nullptr || !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
 
-            if (isBlockingAssign)
+            if (isBlockingAssign) {
                 continuousTargets.insert(symb);
-            else
+            } else {
                 nonblockingSet.insert(symb);
+            }
         }
 
         // Assigned only by non-blocking.
         // Possible reads to the output port will see a delta-cycle delay,
         // as in Verilog.
-        if (continuousTargets.empty())
+        if (continuousTargets.empty()) {
             continue;
+        }
 
         // Ref designs:
         // - openCores/or1200_immu (submodule of or1200_toop)
         // - openCores/i2cSlaveTop
         if (readRefs.empty()) {
-            for (RefSet::iterator j = continuousTargets.begin(); j != continuousTargets.end(); ++j) {
-                Object *symb = *j;
-                Assign *ass  = hif::getNearestParent<Assign>(symb);
-                if (!inTopView)
+            for (auto *symb : continuousTargets) {
+                auto *ass = hif::getNearestParent<Assign>(symb);
+                if (!inTopView) {
                     fixed.push_back(ass);
+                }
                 ass->addProperty(NONBLOCKING_ASSIGNMENT);
-                GlobalAction *gact = hif::getNearestParent<GlobalAction>(symb);
-                if (gact == nullptr)
+                auto *gact = hif::getNearestParent<GlobalAction>(symb);
+                if (gact == nullptr) {
                     continue;
+                }
                 std::set<StateTable *> list;
                 hif::manipulation::transformGlobalActions(ass, list, sem);
                 // Update references
-                for (std::set<StateTable *>::iterator k = list.begin(); k != list.end(); ++k) {
-                    StateTable *st = *k;
+                for (auto *st : list) {
                     // Ref design: openCores/log2
                     //st->setDontInitialize(true);
                     hif::semantics::getAllReferences(refMap, sem, st);
@@ -185,27 +192,24 @@ void _fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageS
             // Replacing all refs with a new signal, and adding a new process to
             // update the output port.
             // Ref design: openCores/or1200_top
-            Signal *sig = new Signal();
+            auto *sig = new Signal();
             sig->setName(NameTable::getInstance()->getFreshName(p->getName(), "_out_sig"));
             sig->setType(hif::copy(p->getType()));
             sig->setValue(hif::copy(p->getValue()));
             hif::manipulation::addDeclarationInContext(sig, p);
 
             RefSet &sigRefs = refMap[sig];
-            for (RefSet::iterator j = continuousTargets.begin(); j != continuousTargets.end(); ++j) {
-                Object *symb = *j;
+            for (auto *symb : continuousTargets) {
                 hif::objectSetName(symb, sig->getName());
                 hif::semantics::setDeclaration(symb, sig);
                 sigRefs.insert(symb);
             }
-            for (RefSet::iterator j = readRefs.begin(); j != readRefs.end(); ++j) {
-                Object *symb = *j;
+            for (auto *symb : readRefs) {
                 hif::objectSetName(symb, sig->getName());
                 hif::semantics::setDeclaration(symb, sig);
                 sigRefs.insert(symb);
             }
-            for (RefSet::iterator j = nonblockingSet.begin(); j != nonblockingSet.end(); ++j) {
-                Object *symb = *j;
+            for (auto *symb : nonblockingSet) {
                 hif::objectSetName(symb, sig->getName());
                 hif::semantics::setDeclaration(symb, sig);
                 sigRefs.insert(symb);
@@ -236,22 +240,23 @@ void _fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageS
         fixed);
 }
 
-void _performChecks(RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
+void performChecks(RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
 {
     hif::application_utils::WarningSet fixedParams;
     hif::application_utils::WarningSet fixedVars;
 
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
-        if (dynamic_cast<Parameter *>(i->first) != nullptr) {
+    for (auto &i : refMap) {
+        if (dynamic_cast<Parameter *>(i.first) != nullptr) {
             // Parameters cannot be signal (are always temporaries)
             // So they must be assign as blocking.
-            Parameter *p   = static_cast<Parameter *>(i->first);
-            RefSet &refSet = i->second;
-            for (RefSet::iterator j = refSet.begin(); j != refSet.end(); ++j) {
-                if (!hif::manipulation::isInLeftHandSide(*j))
+            auto *p        = dynamic_cast<Parameter *>(i.first);
+            RefSet &refSet = i.second;
+            for (auto j = refSet.begin(); j != refSet.end(); ++j) {
+                if (!hif::manipulation::isInLeftHandSide(*j)) {
                     continue;
+                }
 
-                Assign *ass = hif::getNearestParent<Assign>(*j);
+                auto *ass = hif::getNearestParent<Assign>(*j);
                 messageAssert(ass != nullptr, "Cannot find assign", *j, sem);
 
                 if (ass->checkProperty(NONBLOCKING_ASSIGNMENT)) {
@@ -259,16 +264,17 @@ void _performChecks(RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
                     fixedParams.insert(p);
                 }
             }
-        } else if (dynamic_cast<Variable *>(i->first) != nullptr) {
+        } else if (dynamic_cast<Variable *>(i.first) != nullptr) {
             // variables of automatic task or function cannot be signals.
             // So they must be assign as blocking.
-            Variable *var  = static_cast<Variable *>(i->first);
-            RefSet &refSet = i->second;
-            for (RefSet::iterator j = refSet.begin(); j != refSet.end(); ++j) {
-                if (!hif::manipulation::isInLeftHandSide(*j))
+            auto *var      = dynamic_cast<Variable *>(i.first);
+            RefSet &refSet = i.second;
+            for (auto j = refSet.begin(); j != refSet.end(); ++j) {
+                if (!hif::manipulation::isInLeftHandSide(*j)) {
                     continue;
+                }
 
-                Assign *ass = hif::getNearestParent<Assign>(*j);
+                auto *ass = hif::getNearestParent<Assign>(*j);
                 messageAssert(ass != nullptr, "Cannot find assign", *j, sem);
 
                 if (ass->checkProperty(NONBLOCKING_ASSIGNMENT)) {
@@ -297,58 +303,62 @@ void _performChecks(RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
         fixedVars);
 }
 
-void _prerefineFixes(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
+void prerefineFixes(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
 {
     // Unreferenced signal can be safetely translated as variables.
-    _fixUnreferenced(refMap, sem);
+    fixUnreferenced(refMap, sem);
 
     // Output ports assigned by continuous assignments are replaced with explicit
     // processes. If found, a warnings is raised.
-    _fixOutputPorts(topViews, refMap, sem);
+    fixOutputPorts(topViews, refMap, sem);
 
     // Checks:
     // - calls parameters. They cannot be signal (are always temporaries).
     //   So they must be assign as blocking.
     // - variables of automatic task or function. They cannot be signals.
     //   So they must be assign as blocking.
-    _performChecks(refMap, sem);
+    performChecks(refMap, sem);
 }
 
 // /////////////////////////////////////////////////////////////////////////////
 // _splitLogicConesLoops
 // /////////////////////////////////////////////////////////////////////////////
 
-bool _assignQuery(Object *o, const HifQueryBase * /*query*/)
+auto assignQuery(Object *o, const HifQueryBase * /*query*/) -> bool
 {
     // collecting continuous assigns on members and slices
-    Assign *ass = dynamic_cast<Assign *>(o);
-    if (ass == nullptr)
+    auto *ass = dynamic_cast<Assign *>(o);
+    if (ass == nullptr) {
         return false;
-    GlobalAction *ga = dynamic_cast<GlobalAction *>(ass->getParent());
-    if (ga == nullptr)
+    }
+    auto *ga = dynamic_cast<GlobalAction *>(ass->getParent());
+    if (ga == nullptr) {
         return false;
-    Member *member = dynamic_cast<Member *>(ass->getLeftHandSide());
-    Slice *slice   = dynamic_cast<Slice *>(ass->getLeftHandSide());
+    }
+    auto *member = dynamic_cast<Member *>(ass->getLeftHandSide());
+    auto *slice  = dynamic_cast<Slice *>(ass->getLeftHandSide());
     return slice != nullptr || member != nullptr;
 }
 
-Value *_refMatchesToken(Object *ref, Value *token)
+auto refMatchesToken(Object *ref, Value *token) -> Value *
 {
     Object *last = ref;
     while (last != nullptr) {
-        Member *member = dynamic_cast<Member *>(last->getParent());
-        Slice *slice   = dynamic_cast<Slice *>(last->getParent());
-        if (member == nullptr && slice == nullptr)
+        auto *member = dynamic_cast<Member *>(last->getParent());
+        auto *slice  = dynamic_cast<Slice *>(last->getParent());
+        if (member == nullptr && slice == nullptr) {
             break;
+        }
         last = last->getParent();
     }
 
-    if (hif::equals(last, token))
-        return static_cast<Value *>(last);
+    if (hif::equals(last, token)) {
+        return dynamic_cast<Value *>(last);
+    }
     return nullptr;
 }
 
-void _splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
+void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
 {
     // Manipulation example:
     // a[0] = expr1
@@ -359,15 +369,14 @@ void _splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILang
     // a[0] = a_0
     // a[1] = a_1
     // This should ensure to split possible loops.
-    typedef hif::HifTypedQuery<Assign> Query;
-    typedef Query::Results QueryResults;
-    typedef std::set<Value *> ValueSet;
-    typedef std::map<DataDeclaration *, ValueSet> DeclarationTokens;
-    typedef std::map<Value *, std::string> TokenNames;
+    using Query             = hif::HifTypedQuery<Assign>;
+    using ValueSet          = std::set<Value *>;
+    using DeclarationTokens = std::map<DataDeclaration *, ValueSet>;
+    using TokenNames        = std::map<Value *, std::string>;
 
     // Get candidate assigns.
     Query query;
-    query.collectObjectMethod = &_assignQuery;
+    query.check_object_method = &assignQuery;
     query.skipStandardScopes  = true;
     Query::Results assigns;
     hif::search(assigns, system, query);
@@ -375,13 +384,12 @@ void _splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILang
     DataDeclarations declarations;
     DeclarationTokens declarationTokens;
     TokenNames tokenNames;
-    for (QueryResults::iterator i = assigns.begin(); i != assigns.end(); ++i) {
-        Assign *ass          = *i;
+    for (auto *ass : assigns) {
         Value *tgtValue      = ass->getLeftHandSide();
         Value *tgt           = hif::getTerminalPrefix(tgtValue);
         Declaration *tgtDecl = hif::semantics::getDeclaration(tgt, sem);
         messageAssert(tgtDecl != nullptr, "Declaration not found", tgt, sem);
-        DataDeclaration *tgtDataDecl = dynamic_cast<DataDeclaration *>(tgtDecl);
+        auto *tgtDataDecl = dynamic_cast<DataDeclaration *>(tgtDecl);
         messageAssert(tgtDataDecl != nullptr, "Expected DataDeclaration", tgtDecl, sem);
         declarations.insert(tgtDataDecl);
         ValueSet &valueSet = declarationTokens[tgtDataDecl];
@@ -396,18 +404,16 @@ void _splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILang
     // 2- Generating assigns from tokens to original declaration.
     // 3- Generating new signal declarations
     hif::Trash trash;
-    for (DataDeclarations::iterator i = declarations.begin(); i != declarations.end(); ++i) {
-        DataDeclaration *decl = *i;
-        ValueSet &values      = declarationTokens[decl];
+    for (auto *decl : declarations) {
+        ValueSet &values = declarationTokens[decl];
 
         // @TODO remove refs from refMap and add tokendecl refs to refMap
-        for (ValueSet::const_iterator j = values.begin(); j != values.end(); ++j) {
-            Value *token          = *j;
+        for (auto *token : values) {
             RefSet &refSet        = refMap[decl];
             std::string tokenName = tokenNames[token];
 
             // 1
-            Signal *sig = new Signal();
+            auto *sig = new Signal();
             hif::manipulation::addDeclarationInContext(sig, decl, false);
             sig->setName(tokenName);
             Type *tokenType = hif::semantics::getSemanticType(token, sem);
@@ -424,20 +430,20 @@ void _splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILang
             }
 
             // 2
-            Assign *ass = new Assign();
+            auto *ass = new Assign();
             ass->setLeftHandSide(hif::copy(token));
             ass->setRightHandSide(new Identifier(tokenName));
             BList<Object>::iterator jt(token->getParent());
             jt.insert_after(ass);
 
             // 3
-            for (RefSet::const_iterator k = refSet.begin(); k != refSet.end(); ++k) {
-                Object *ref   = *k;
-                Value *topRef = _refMatchesToken(ref, token);
-                if (topRef == nullptr)
+            for (auto *ref : refSet) {
+                Value *topRef = refMatchesToken(ref, token);
+                if (topRef == nullptr) {
                     continue;
+                }
                 trash.insert(topRef);
-                Identifier *id = new Identifier(tokenName);
+                auto *id = new Identifier(tokenName);
                 topRef->replace(id);
             }
         }
@@ -455,7 +461,7 @@ struct InfoStruct {
     InfoStruct();
     ~InfoStruct();
     InfoStruct(const InfoStruct &other);
-    InfoStruct &operator=(const InfoStruct &other);
+    auto operator=(const InfoStruct &other) -> InfoStruct &;
 
     // Ref is port in instance binding
     RefSet portUsing;
@@ -476,9 +482,9 @@ struct InfoStruct {
     // Ref is read (in condition or RHS of procedural assigns or param of method call)
     RefSet readUsing;
 
-    bool wasLhsContinuous;
+    bool wasLhsContinuous{false};
 
-    bool isOnlyInContinuousAssignments() const;
+    auto isOnlyInContinuousAssignments() const -> bool;
 };
 
 InfoStruct::InfoStruct()
@@ -491,7 +497,7 @@ InfoStruct::InfoStruct()
     , lhsNonBlockingUsing()
     , lhsBlockingUsing()
     , readUsing()
-    , wasLhsContinuous(false)
+
 {
     // ntd
 }
@@ -516,10 +522,11 @@ InfoStruct::InfoStruct(const InfoStruct &other)
     // ntd
 }
 
-InfoStruct &InfoStruct::operator=(const InfoStruct &other)
+auto InfoStruct::operator=(const InfoStruct &other) -> InfoStruct &
 {
-    if (this == &other)
+    if (this == &other) {
         return *this;
+    }
 
     portUsing           = other.portUsing;
     sensitivityUsing    = other.sensitivityUsing;
@@ -535,34 +542,40 @@ InfoStruct &InfoStruct::operator=(const InfoStruct &other)
     return *this;
 }
 
-typedef std::map<DataDeclaration *, InfoStruct> InfoMap;
+using InfoMap = std::map<DataDeclaration *, InfoStruct>;
 
-bool InfoStruct::isOnlyInContinuousAssignments() const
+auto InfoStruct::isOnlyInContinuousAssignments() const -> bool
 {
-    if (!sensitivityUsing.empty())
+    if (!sensitivityUsing.empty()) {
         return false;
-    if (!bindUsing.empty())
+    }
+    if (!bindUsing.empty()) {
         return false;
-    if (!waitUsing.empty())
+    }
+    if (!waitUsing.empty()) {
         return false;
-    if (!lhsNonBlockingUsing.empty())
+    }
+    if (!lhsNonBlockingUsing.empty()) {
         return false;
-    if (!lhsBlockingUsing.empty())
+    }
+    if (!lhsBlockingUsing.empty()) {
         return false;
-    if (!readUsing.empty())
+    }
+    if (!readUsing.empty()) {
         return false;
+    }
 
     return true;
 }
 
-void _calculateRequiredDeclType(
+void calculateRequiredDeclType(
     bool &isConnectionSignal,
     bool &isSignal,
     bool &isVariable,
     const InfoStruct &infos,
     DataDeclaration *decl)
 {
-    //        const bool isOutputPort = dynamic_cast<Port*>(decl) != nullptr
+    //        bool isOutputPort = dynamic_cast<Port*>(decl) != nullptr
     //                && static_cast<Port*>(decl)->getDirection() == dir_out;
 
     isConnectionSignal = dynamic_cast<Port *>(decl) != nullptr || !infos.portUsing.empty() || !infos.bindUsing.empty();
@@ -573,23 +586,22 @@ void _calculateRequiredDeclType(
     isVariable = !infos.lhsContinuousUsing.empty() || !infos.lhsBlockingUsing.empty() || infos.wasLhsContinuous;
 }
 
-void _fillInfoMap(RefMap &refMap, InfoMap &infoMap, const bool removeProperty)
+void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
 {
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
-        DataDeclaration *decl = dynamic_cast<DataDeclaration *>(i->first);
+    for (auto &i : refMap) {
+        auto *decl = dynamic_cast<DataDeclaration *>(i.first);
 
-        Signal *sig = dynamic_cast<Signal *>(decl);
-        Port *port  = dynamic_cast<Port *>(decl);
-        if (sig == nullptr && port == nullptr)
+        auto *sig  = dynamic_cast<Signal *>(decl);
+        Port *port = dynamic_cast<Port *>(decl);
+        if (sig == nullptr && port == nullptr) {
             continue;
+        }
 
         // For each interesting symbol check the context and push it into the
         // related list.
-        for (RefSet::iterator j = i->second.begin(); j != i->second.end(); ++j) {
-            Object *symb = *j;
-
-            Assign *ass = hif::getNearestParent<Assign>(symb);
-            Wait *wait  = hif::getNearestParent<Wait>(symb);
+        for (auto *symb : i.second) {
+            auto *ass  = hif::getNearestParent<Assign>(symb);
+            Wait *wait = hif::getNearestParent<Wait>(symb);
             ObjectSensitivityOptions opts;
             opts.checkAll = true;
             if (dynamic_cast<PortAssign *>(symb) != nullptr) {
@@ -603,17 +615,18 @@ void _fillInfoMap(RefMap &refMap, InfoMap &infoMap, const bool removeProperty)
                 (hif::objectIsInSensitivityList(symb, opts) || hif::isSubNode(symb, wait->getCondition()))) {
                 infoMap[decl].waitUsing.insert(symb);
             } else if (ass != nullptr) {
-                const bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
-                const bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
-                const bool hasBlocking = !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
+                bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
+                bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
+                bool hasBlocking = !ass->checkProperty(NONBLOCKING_ASSIGNMENT);
                 if (!isTarget && isInGlobact) {
                     infoMap[decl].rhsContinuousUsing.insert(symb);
                 } else if (isTarget && isInGlobact) {
                     infoMap[decl].wasLhsContinuous = true;
                     infoMap[decl].lhsContinuousUsing.insert(symb);
                 } else if (isTarget && !isInGlobact && !hasBlocking) {
-                    if (removeProperty)
+                    if (removeProperty) {
                         ass->removeProperty(NONBLOCKING_ASSIGNMENT);
+                    }
                     infoMap[decl].lhsNonBlockingUsing.insert(symb);
                 } else if (isTarget && !isInGlobact && hasBlocking) {
                     infoMap[decl].lhsBlockingUsing.insert(symb);
@@ -632,33 +645,31 @@ void _fillInfoMap(RefMap &refMap, InfoMap &infoMap, const bool removeProperty)
 // ///////////////////////////////////////////////////////////////////
 // _fixLogicCones()
 // ///////////////////////////////////////////////////////////////////
-typedef hif::analysis::Types<DataDeclaration, DataDeclaration>::Graph LogicGraph;
-typedef hif::analysis::Types<DataDeclaration, DataDeclaration>::Set LogicSet;
-typedef hif::analysis::Types<DataDeclaration, DataDeclaration>::List LogicList;
-typedef hif::semantics::SymbolList SymbList;
-typedef std::map<DataDeclaration *, Procedure *> ConesMap;
-typedef hif::analysis::Types<DataDeclaration, DataDeclaration>::Map SensitivityMap;
+using LogicGraph     = hif::analysis::Types<DataDeclaration, DataDeclaration>::Graph;
+using LogicSet       = hif::analysis::Types<DataDeclaration, DataDeclaration>::Set;
+using LogicList      = hif::analysis::Types<DataDeclaration, DataDeclaration>::List;
+using SymbList       = hif::semantics::SymbolList;
+using ConesMap       = std::map<DataDeclaration *, Procedure *>;
+using SensitivityMap = hif::analysis::Types<DataDeclaration, DataDeclaration>::Map;
 
-void _generateLogicConesGraph(InfoMap &infoMap, LogicGraph &logicGraph, hif::semantics::ILanguageSemantics *sem)
+void generateLogicConesGraph(InfoMap &infoMap, LogicGraph &logicGraph, hif::semantics::ILanguageSemantics *sem)
 {
     // For all interesting decls (i.e. ports and signals)
-    for (InfoMap::iterator i = infoMap.begin(); i != infoMap.end(); ++i) {
+    for (auto i = infoMap.begin(); i != infoMap.end(); ++i) {
         DataDeclaration *decl       = i->first;
         InfoStruct &info            = infoMap[decl];
         bool hasOnlyConstantDrivers = true;
 
         // The graph is related to target of continuous assigns,
         // between the target and its source symbols
-        for (RefSet::iterator j = info.lhsContinuousUsing.begin(); j != info.lhsContinuousUsing.end(); ++j) {
-            Object *symb = *j;
-            Assign *ass  = hif::getNearestParent<Assign>(symb);
+        for (auto *symb : info.lhsContinuousUsing) {
+            auto *ass = hif::getNearestParent<Assign>(symb);
             messageAssert(ass != nullptr, "Unexpected scope", symb, sem);
 
             SymbList symbolList;
             hif::semantics::collectSymbols(symbolList, ass, sem);
-            for (SymbList::iterator k = symbolList.begin(); k != symbolList.end(); ++k) {
-                Object *innerSymb   = *k;
-                Identifier *innerId = dynamic_cast<Identifier *>(innerSymb);
+            for (auto *innerSymb : symbolList) {
+                auto *innerId = dynamic_cast<Identifier *>(innerSymb);
                 if (innerId == nullptr) {
                     hasOnlyConstantDrivers = false;
                     continue;
@@ -667,8 +678,8 @@ void _generateLogicConesGraph(InfoMap &infoMap, LogicGraph &logicGraph, hif::sem
                 DataDeclaration *innerDecl = hif::semantics::getDeclaration(innerId, sem);
                 messageAssert(innerDecl != nullptr, "Declaration not found", innerId, sem);
 
-                Signal *sig = dynamic_cast<Signal *>(innerDecl);
-                Port *port  = dynamic_cast<Port *>(innerDecl);
+                auto *sig  = dynamic_cast<Signal *>(innerDecl);
+                Port *port = dynamic_cast<Port *>(innerDecl);
                 if (sig == nullptr && port == nullptr) {
                     hasOnlyConstantDrivers = false;
                     continue;
@@ -689,14 +700,16 @@ void _generateLogicConesGraph(InfoMap &infoMap, LogicGraph &logicGraph, hif::sem
                     bool isConnectionSignal = false;
                     bool isSignal           = false;
                     bool isVariable         = false;
-                    _calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, sig);
-                    if (!isSignal && !isVariable)
+                    calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, sig);
+                    if (!isSignal && !isVariable) {
                         continue;
+                    }
                 }
 
                 // Skipping self references: e.g. assign a = b + c (skip a)
-                if (innerDecl == decl)
+                if (innerDecl == decl) {
                     continue;
+                }
 
                 hasOnlyConstantDrivers = false;
 
@@ -728,7 +741,7 @@ void _generateLogicConesGraph(InfoMap &infoMap, LogicGraph &logicGraph, hif::sem
     }
 }
 
-void _generateConeFunctions(
+void generateConeFunctions(
     RefMap &refMap,
     InfoMap &infoMap,
     hif::semantics::ILanguageSemantics *sem,
@@ -742,28 +755,29 @@ void _generateConeFunctions(
     typedef std::map<std::string, Procedure *> Cones;
     Cones cones;
 
-    for (LogicList::iterator i = sortedGraph.begin(); i != sortedGraph.end(); ++i) {
-        DataDeclaration *decl = *i;
-
+    for (auto *decl : sortedGraph) {
         // Skipping all shit
-        Signal *sig = dynamic_cast<Signal *>(decl);
-        Port *port  = dynamic_cast<Port *>(decl);
-        if (sig == nullptr && port == nullptr)
+        auto *sig  = dynamic_cast<Signal *>(decl);
+        Port *port = dynamic_cast<Port *>(decl);
+        if (sig == nullptr && port == nullptr) {
             continue;
+        }
 
         InfoStruct &infos     = infoMap[decl];
-        const bool onlyInCont = (infos.isOnlyInContinuousAssignments());
-        if (onlyInCont)
+        bool onlyInCont = (infos.isOnlyInContinuousAssignments());
+        if (onlyInCont) {
             continue;
+        }
         // Means: signal read by continuous, but written only by processes or modules.
         // No need of cone.
-        if (infos.lhsContinuousUsing.empty())
+        if (infos.lhsContinuousUsing.empty()) {
             continue;
+        }
 
         // decl is used by processes (or in other places),
         // and therefore it must have its cone procedure.
         std::string pName = hif::NameTable::getInstance()->getFreshName((std::string("hif_cone_") + decl->getName()));
-        Procedure *cone   = static_cast<Procedure *>(f.subprogram(nullptr, pName, f.noTemplates(), f.noParameters()));
+        Procedure *cone   = dynamic_cast<Procedure *>(f.subprogram(nullptr, pName, f.noTemplates(), f.noParameters()));
 
         decl->getBList()->push_back(cone);
         cones[cone->getName()] = cone;
@@ -775,8 +789,8 @@ void _generateConeFunctions(
 
         // Inserting the contiunuous assigns,
         // since they will be then removed from the tree.
-        for (RefSet::iterator j = infos.lhsContinuousUsing.begin(); j != infos.lhsContinuousUsing.end(); ++j) {
-            Assign *ass = hif::getNearestParent<Assign>(*j);
+        for (auto j = infos.lhsContinuousUsing.begin(); j != infos.lhsContinuousUsing.end(); ++j) {
+            auto *ass = hif::getNearestParent<Assign>(*j);
             messageAssert(ass != nullptr, "Assign not found", *j, sem);
 
             s->actions.push_front(hif::copy(ass));
@@ -789,14 +803,14 @@ void _generateConeFunctions(
         if (!infos.lhsNonBlockingUsing.empty() || !infos.lhsBlockingUsing.empty()) {
             // adding a decl_old
             std::string dOldName = hif::NameTable::getInstance()->getFreshName((std::string("old_") + decl->getName()));
-            Variable *declOld    = new Variable();
+            auto *declOld        = new Variable();
             declOld->setType(hif::copy(decl->getType()));
             declOld->setValue(hif::copy(decl->getValue()));
             declOld->setName(dOldName);
             hif::manipulation::addDeclarationInContext(declOld, decl, false);
 
             // adding decl_tmp local to the procedure
-            Variable *declTmp = new Variable();
+            auto *declTmp = new Variable();
             declTmp->setType(hif::copy(decl->getType()));
             declTmp->setValue(hif::copy(decl->getValue()));
             std::string dTmpName = hif::NameTable::getInstance()->getFreshName((std::string("tmp_") + decl->getName()));
@@ -812,9 +826,9 @@ void _generateConeFunctions(
             //     old_a = tmp_a;
             //     a = tmp_a;
             // }
-            Identifier *tmpId  = new Identifier(declTmp->getName());
-            Identifier *oldId  = new Identifier(declOld->getName());
-            Identifier *declId = new Identifier(decl->getName());
+            auto *tmpId  = new Identifier(declTmp->getName());
+            auto *oldId  = new Identifier(declOld->getName());
+            auto *declId = new Identifier(decl->getName());
 
             for (BList<Assign>::iterator j = s->actions.toOtherBList<Assign>().begin();
                  j != s->actions.toOtherBList<Assign>().end(); ++j) {
@@ -836,22 +850,22 @@ void _generateConeFunctions(
     }
 
     // Fixing cone declarations order
-    for (Cones::iterator i = cones.begin(); i != cones.end(); ++i) {
-        Procedure *cone     = i->second;
+    for (auto &i : cones) {
+        Procedure *cone     = i.second;
         BList<Object> *list = cone->getBList();
         cone->replace(nullptr);
         list->push_back(cone);
     }
 
-    for (ConesMap::iterator i = conesMap.begin(); i != conesMap.end(); ++i) {
+    for (auto i = conesMap.begin(); i != conesMap.end(); ++i) {
         DataDeclaration *decl = i->first;
         Procedure *myProc     = i->second;
         State *myState        = myProc->getStateTable()->states.front();
 
-        for (LogicList::iterator j = sortedGraph.begin(); j != sortedGraph.end(); ++j) {
-            DataDeclaration *parent = *j;
-            if (logicGraph.first[decl].find(parent) == logicGraph.first[decl].end())
+        for (auto *parent : sortedGraph) {
+            if (logicGraph.first[decl].find(parent) == logicGraph.first[decl].end()) {
                 continue;
+            }
 
             if (conesMap.find(parent) != conesMap.end()) {
                 // PCall creation moved later.
@@ -871,9 +885,8 @@ void _generateConeFunctions(
             } else {
                 // push_front() of copy of all continuous assigns
                 InfoStruct &parentInfos = infoMap[parent];
-                for (RefSet::iterator k = parentInfos.lhsContinuousUsing.begin();
-                     k != parentInfos.lhsContinuousUsing.end(); ++k) {
-                    Assign *ass = hif::getNearestParent<Assign>(*k);
+                for (auto k = parentInfos.lhsContinuousUsing.begin(); k != parentInfos.lhsContinuousUsing.end(); ++k) {
+                    auto *ass = hif::getNearestParent<Assign>(*k);
                     messageAssert(ass != nullptr, "Assign not found", *k, sem);
 
                     myState->actions.push_front(hif::copy(ass));
@@ -885,8 +898,7 @@ void _generateConeFunctions(
                 // by pushing my parent-parents (i.e. grandparents)
                 // as my parents! LOL!
                 logicGraph.first[decl].insert(logicGraph.first[parent].begin(), logicGraph.first[parent].end());
-                for (LogicSet::iterator k = logicGraph.first[parent].begin(); k != logicGraph.first[parent].end();
-                     ++k) {
+                for (auto k = logicGraph.first[parent].begin(); k != logicGraph.first[parent].end(); ++k) {
                     logicGraph.second[*k].insert(decl);
                 }
             }
@@ -894,47 +906,49 @@ void _generateConeFunctions(
     }
 
     // Updating refs and infos
-    for (ConesMap::iterator i = conesMap.begin(); i != conesMap.end(); ++i) {
-        Procedure *p = i->second;
+    for (auto &i : conesMap) {
+        Procedure *p = i.second;
 
         RefMap procRefs;
         hif::semantics::getAllReferences(procRefs, sem, p);
 
         // updating infos
-        _fillInfoMap(procRefs, infoMap, true);
+        fillInfoMap(procRefs, infoMap, true);
 
         // updating refs
-        for (RefMap::iterator j = procRefs.begin(); j != procRefs.end(); ++j) {
-            Declaration *decl = j->first;
-            RefSet &refSet    = j->second;
+        for (auto &procRef : procRefs) {
+            Declaration *decl = procRef.first;
+            RefSet &refSet    = procRef.second;
 
             refMap[decl].insert(refSet.begin(), refSet.end());
         }
     }
 }
 
-typedef std::map<Object *, std::set<Procedure *>> CallsMap;
+using CallsMap = std::map<Object *, std::set<Procedure *>>;
 
-Procedure *_getParentCone(Object *symb, ConesMap &conesMap)
+auto getParentCone(Object *symb, ConesMap &conesMap) -> Procedure *
 {
-    Procedure *parentProc = hif::getNearestParent<Procedure>(symb);
-    if (parentProc == nullptr)
+    auto *parentProc = hif::getNearestParent<Procedure>(symb);
+    if (parentProc == nullptr) {
         return nullptr;
+    }
 
-    for (ConesMap::iterator i = conesMap.begin(); i != conesMap.end(); ++i) {
-        if (i->second == parentProc)
+    for (auto &i : conesMap) {
+        if (i.second == parentProc) {
             return parentProc;
+        }
     }
 
     return nullptr;
 }
 
-void _addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, ConesMap &conesMap, CallsMap &callsMap)
+void addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, ConesMap &conesMap, CallsMap &callsMap)
 {
     hif::HifFactory f(sem);
 
     // adding cone calls where related symbol is read or written.
-    for (ConesMap::iterator i = conesMap.begin(); i != conesMap.end(); ++i) {
+    for (auto i = conesMap.begin(); i != conesMap.end(); ++i) {
         DataDeclaration *decl = i->first;
         Procedure *p          = i->second;
 
@@ -945,27 +959,29 @@ void _addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, 
         tmpSet.insert(infos.lhsBlockingUsing.begin(), infos.lhsBlockingUsing.end());
         tmpSet.insert(infos.lhsNonBlockingUsing.begin(), infos.lhsNonBlockingUsing.end());
 
-        for (RefSet::iterator j = tmpSet.begin(); j != tmpSet.end(); ++j) {
-            Object *symb      = *j;
-            Action *parentAct = hif::getNearestParent<Action>(symb);
+        for (auto *symb : tmpSet) {
+            auto *parentAct = hif::getNearestParent<Action>(symb);
             messageAssert(parentAct != nullptr, "cannot find parent action", symb, sem);
 
             // Skip symbols inside the cones itself
-            if (hif::isSubNode(symb, p))
+            if (hif::isSubNode(symb, p)) {
                 continue;
+            }
 
             // Avoid multiple calls inside same cone
-            Procedure *parentCone = _getParentCone(symb, conesMap);
+            Procedure *parentCone = getParentCone(symb, conesMap);
             if (parentCone != nullptr) {
-                if (callsMap[parentCone].find(p) != callsMap[parentCone].end())
+                if (callsMap[parentCone].find(p) != callsMap[parentCone].end()) {
                     continue;
+                }
 
                 callsMap[parentCone].insert(p);
             }
 
             // Avoid case: a = a + 1: add only one cone call.
-            if (callsMap[parentAct].find(p) != callsMap[parentAct].end())
+            if (callsMap[parentAct].find(p) != callsMap[parentAct].end()) {
                 continue;
+            }
             callsMap[parentAct].insert(p);
 
             ProcedureCall *pcall =
@@ -978,13 +994,13 @@ void _addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, 
             } else {
                 // Ensuring that the pcall happens always before all the cone var refs.
                 hif::semantics::GetReferencesOptions opt;
-                opt.onlyFirst = true;
+                opt.only_first = true;
                 hif::semantics::ReferencesSet res;
                 hif::semantics::getReferences(decl, res, sem, parentCone, opt);
                 messageAssert(res.size() == 1U, "Expected just one ref", decl, sem);
 
-                Object *firstRef  = *res.begin();
-                Action *firstPact = hif::getNearestParent<Action>(firstRef);
+                Object *firstRef = *res.begin();
+                auto *firstPact  = hif::getNearestParent<Action>(firstRef);
                 messageAssert(
                     firstPact != nullptr && firstPact->isInBList(), "cannot find parent action", firstRef, sem);
                 BList<Action>::iterator it(firstPact);
@@ -994,12 +1010,12 @@ void _addConesPCalls(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, 
     }
 }
 
-void _calculateParentNodes(DataDeclaration *decl, SensitivityMap &parentMap, SensitivityMap &sensMap)
+void calculateParentNodes(DataDeclaration *decl, SensitivityMap &parentMap, SensitivityMap &sensMap)
 {
-    for (LogicSet::iterator i = parentMap[decl].begin(); i != parentMap[decl].end(); ++i) {
+    for (auto i = parentMap[decl].begin(); i != parentMap[decl].end(); ++i) {
         DataDeclaration *node = *i;
         if (sensMap[node].empty()) {
-            _calculateParentNodes(node, parentMap, sensMap);
+            calculateParentNodes(node, parentMap, sensMap);
         }
 
         if (sensMap[node].empty()) {
@@ -1013,7 +1029,7 @@ void _calculateParentNodes(DataDeclaration *decl, SensitivityMap &parentMap, Sen
     }
 }
 
-void _fixSensitivities(
+void fixSensitivities(
     RefMap &refMap,
     InfoMap &infoMap,
     hif::semantics::ILanguageSemantics *sem,
@@ -1021,43 +1037,43 @@ void _fixSensitivities(
     ConesMap &conesMap,
     SensitivityMap &sensMap)
 {
-    for (ConesMap::iterator i = conesMap.begin(); i != conesMap.end(); ++i) {
-        DataDeclaration *decl = i->first;
+    for (auto &i : conesMap) {
+        DataDeclaration *decl = i.first;
 
         // For all continuous,collects top-level parents in cones.
         // This can be useful for future fixes.
-        _calculateParentNodes(decl, logicGraph.first, sensMap);
+        calculateParentNodes(decl, logicGraph.first, sensMap);
 
         // Actual fix.
         // Fix only when target of continuous assignment is used in sensitivity of
         // processes or wait.
         InfoStruct &infos = infoMap[decl];
-        if (infos.sensitivityUsing.empty() && infos.waitUsing.empty())
+        if (infos.sensitivityUsing.empty() && infos.waitUsing.empty()) {
             continue;
+        }
 
         // For each using adding top level parents in sensitivities and remove it
         // from the list.
-        for (RefSet::iterator j = infos.sensitivityUsing.begin(); j != infos.sensitivityUsing.end();) {
+        for (auto j = infos.sensitivityUsing.begin(); j != infos.sensitivityUsing.end();) {
             Object *ref            = *j;
             BList<Value> *sensList = hif::objectGetSensitivityList(ref);
             messageAssert(sensList != nullptr, "Cannot find parent sensitivity", ref, sem);
-            sensList->removeSubTree(static_cast<Value *>(ref));
+            sensList->removeSubTree(dynamic_cast<Value *>(ref));
             infos.sensitivityUsing.erase(j++);
             refMap[decl].erase(ref);
             delete ref;
-            for (LogicSet::iterator k = sensMap[decl].begin(); k != sensMap[decl].end(); ++k) {
-                DataDeclaration *parentNodeDecl = *k;
-
-                Signal *sig = dynamic_cast<Signal *>(parentNodeDecl);
-                Port *port  = dynamic_cast<Port *>(parentNodeDecl);
-                if (sig == nullptr && port == nullptr)
+            for (auto *parentNodeDecl : sensMap[decl]) {
+                auto *sig  = dynamic_cast<Signal *>(parentNodeDecl);
+                Port *port = dynamic_cast<Port *>(parentNodeDecl);
+                if (sig == nullptr && port == nullptr) {
                     continue;
+                }
 
-                Identifier *sensEntry = new Identifier(parentNodeDecl->getName());
+                auto *sensEntry = new Identifier(parentNodeDecl->getName());
                 hif::manipulation::AddUniqueObjectOptions addOpt;
                 addOpt.equalsOptions.checkOnlyNames = true;
                 addOpt.deleteIfNotAdded             = true;
-                const bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
+                bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
                 if (inserted) {
                     infoMap[parentNodeDecl].sensitivityUsing.insert(sensEntry);
                     refMap[parentNodeDecl].insert(sensEntry);
@@ -1065,30 +1081,30 @@ void _fixSensitivities(
             }
         }
 
-        for (RefSet::iterator j = infos.waitUsing.begin(); j != infos.waitUsing.end();) {
+        for (auto j = infos.waitUsing.begin(); j != infos.waitUsing.end();) {
             Object *ref = *j;
             ObjectSensitivityOptions opts;
             opts.checkAll          = true;
             BList<Value> *sensList = hif::objectGetSensitivityList(ref, opts);
-            if (sensList == nullptr)
+            if (sensList == nullptr) {
                 continue; // i.e. in wait condition
-            sensList->removeSubTree(static_cast<Value *>(ref));
+            }
+            sensList->removeSubTree(dynamic_cast<Value *>(ref));
             infos.waitUsing.erase(j++);
             refMap[decl].erase(ref);
             delete ref;
-            for (LogicSet::iterator k = sensMap[decl].begin(); k != sensMap[decl].end(); ++k) {
-                DataDeclaration *parentNodeDecl = *k;
-
-                Signal *sig = dynamic_cast<Signal *>(parentNodeDecl);
-                Port *port  = dynamic_cast<Port *>(parentNodeDecl);
-                if (sig == nullptr && port == nullptr)
+            for (auto *parentNodeDecl : sensMap[decl]) {
+                auto *sig  = dynamic_cast<Signal *>(parentNodeDecl);
+                Port *port = dynamic_cast<Port *>(parentNodeDecl);
+                if (sig == nullptr && port == nullptr) {
                     continue;
+                }
 
-                Identifier *sensEntry = new Identifier(parentNodeDecl->getName());
+                auto *sensEntry = new Identifier(parentNodeDecl->getName());
                 hif::manipulation::AddUniqueObjectOptions addOpt;
                 addOpt.equalsOptions.checkOnlyNames = true;
                 addOpt.deleteIfNotAdded             = true;
-                const bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
+                bool inserted                 = hif::manipulation::addUniqueObject(sensEntry, *sensList, addOpt);
                 if (inserted) {
                     infoMap[parentNodeDecl].waitUsing.insert(sensEntry);
                     refMap[parentNodeDecl].insert(sensEntry);
@@ -1098,34 +1114,34 @@ void _fixSensitivities(
     }
 }
 
-void _clearContinuousAssigns(RefMap &refMap, InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem)
+void clearContinuousAssigns(RefMap &refMap, InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem)
 {
-    for (InfoMap::iterator i = infoMap.begin(); i != infoMap.end(); ++i) {
+    for (auto i = infoMap.begin(); i != infoMap.end(); ++i) {
         //DataDeclaration * decl = i->first;
         InfoStruct &infos = i->second;
 
-        for (RefSet::iterator j = infos.lhsContinuousUsing.begin(); j != infos.lhsContinuousUsing.end(); ++j) {
-            Object *ref = *j;
-            Assign *ass = hif::getNearestParent<Assign>(ref);
+        for (auto *ref : infos.lhsContinuousUsing) {
+            auto *ass = hif::getNearestParent<Assign>(ref);
             messageAssert(ass != nullptr, "Cannot find parent assign", ref, sem);
 
             SymbList symbolList;
             hif::semantics::collectSymbols(symbolList, ass, sem);
-            for (SymbList::iterator k = symbolList.begin(); k != symbolList.end(); ++k) {
-                Object *innerSymb   = *k;
-                Identifier *innerId = dynamic_cast<Identifier *>(innerSymb);
-                if (innerId == nullptr)
+            for (auto *innerSymb : symbolList) {
+                auto *innerId = dynamic_cast<Identifier *>(innerSymb);
+                if (innerId == nullptr) {
                     continue;
+                }
 
                 DataDeclaration *innerDecl = hif::semantics::getDeclaration(innerId, sem);
                 messageAssert(innerDecl != nullptr, "Declaration not found", innerId, sem);
 
                 refMap[innerDecl].erase(innerSymb);
 
-                Signal *sig = dynamic_cast<Signal *>(innerDecl);
-                Port *port  = dynamic_cast<Port *>(innerDecl);
-                if (sig == nullptr && port == nullptr)
+                auto *sig  = dynamic_cast<Signal *>(innerDecl);
+                Port *port = dynamic_cast<Port *>(innerDecl);
+                if (sig == nullptr && port == nullptr) {
                     continue;
+                }
 
                 infoMap[innerDecl].readUsing.erase(innerSymb);
                 infoMap[innerDecl].rhsContinuousUsing.erase(innerSymb);
@@ -1139,7 +1155,7 @@ void _clearContinuousAssigns(RefMap &refMap, InfoMap &infoMap, hif::semantics::I
     }
 }
 
-void _fixLogicCones(
+void fixLogicCones(
     RefMap &refMap,
     InfoMap &infoMap,
     ConesMap &conesMap,
@@ -1150,14 +1166,14 @@ void _fixLogicCones(
     // Generate logic cones graph. It is related to target of continuous assigns,
     // between the target and its source symbols
     LogicGraph logicGraph;
-    _generateLogicConesGraph(infoMap, logicGraph, sem);
+    generateLogicConesGraph(infoMap, logicGraph, sem);
 
     // Sort the graphs w.r.t. symbols declarations.
     LogicList sortedGraph;
     hif::analysis::sortGraph<DataDeclaration, DataDeclaration>(logicGraph, sortedGraph, true);
 
     // create all necessary hif_cone procedures starting from sorted graph result.
-    _generateConeFunctions(refMap, infoMap, sem, sortedGraph, logicGraph, conesMap);
+    generateConeFunctions(refMap, infoMap, sem, sortedGraph, logicGraph, conesMap);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     System *s = hif::getNearestParent<System>(refMap.begin()->first);
@@ -1166,7 +1182,7 @@ void _fixLogicCones(
 #endif
 
     // add all necessary calls to hif_cone procedures.
-    _addConesPCalls(infoMap, sem, conesMap, callsMap);
+    addConesPCalls(infoMap, sem, conesMap, callsMap);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     hif::writeFile("FIX3_3_2_after_add_cones_PCalls", s, true);
@@ -1175,7 +1191,7 @@ void _fixLogicCones(
 
     // fix the sensitivity list replacing symbols assigned by continuous assigns
     // with top level parents in sensitivities.
-    _fixSensitivities(refMap, infoMap, sem, logicGraph, conesMap, sensMap);
+    fixSensitivities(refMap, infoMap, sem, logicGraph, conesMap, sensMap);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     hif::writeFile("FIX3_3_3_after_fix_sensitivities", s, true);
@@ -1183,13 +1199,13 @@ void _fixLogicCones(
 #endif
 
     // removes all continuous assigns.
-    _clearContinuousAssigns(refMap, infoMap, sem);
+    clearContinuousAssigns(refMap, infoMap, sem);
 }
 
 // ///////////////////////////////////////////////////////////////////
 // Refine to variables
 // ///////////////////////////////////////////////////////////////////
-void _refineToVariables(
+void refineToVariables(
     RefMap &refMap,
     InfoMap &infoMap,
     ConesMap &conesMap,
@@ -1201,21 +1217,22 @@ void _refineToVariables(
     hif::application_utils::WarningList bindWarnings;
     hif::application_utils::WarningList delayWarnings;
 
-    for (InfoMap::iterator i = infoMap.begin(); i != infoMap.end(); ++i) {
+    for (auto i = infoMap.begin(); i != infoMap.end(); ++i) {
         DataDeclaration *decl = i->first;
         InfoStruct &infos     = i->second;
 
         bool isConnectionSignal = false;
         bool isSignal           = false;
         bool isVariable         = false;
-        _calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, decl);
+        calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, decl);
 
         if ((isSignal && !isVariable)) {
             // nothing to do since is already a signal.
             continue;
-        } else if ((isVariable && !isSignal) || (!isVariable && !isSignal)) {
+        }
+        if ((isVariable && !isSignal) || (!isVariable && !isSignal)) {
             // Refine to variable
-            Variable *var = new Variable();
+            auto *var = new Variable();
             var->setName(decl->getName());
             var->setType(decl->setType(nullptr));
             var->setValue(decl->setValue(nullptr));
@@ -1223,8 +1240,7 @@ void _refineToVariables(
             decl->replace(var);
             delete decl;
 
-            for (RefSet::iterator j = refMap[decl].begin(); j != refMap[decl].end(); ++j) {
-                Object *reference = *j;
+            for (auto *reference : refMap[decl]) {
                 hif::semantics::setDeclaration(reference, var);
             }
         } else // (isVariable && isSignal) || isOutputPort
@@ -1237,7 +1253,7 @@ void _refineToVariables(
             std::string varName = NameTable::getInstance()->getFreshName(decl->getName(), "_sig_var");
 
             // creating support var
-            Variable *var = new Variable();
+            auto *var = new Variable();
             var->setName(varName);
             var->setType(hif::copy(decl->getType()));
             var->setValue(hif::copy(decl->getValue()));
@@ -1247,7 +1263,7 @@ void _refineToVariables(
 
             messageAssert(infos.lhsContinuousUsing.empty(), "Unexpected lhs of continuous", decl, sem);
 
-            for (RefSet::iterator j = infos.lhsBlockingUsing.begin(); j != infos.lhsBlockingUsing.end(); ++j) {
+            for (auto *ref : infos.lhsBlockingUsing) {
                 // 1- sig = expr  -->
                 // var[5] = expr;
                 // sig[5] <= var[5]; // only if is not inside cone
@@ -1255,12 +1271,11 @@ void _refineToVariables(
                 // var[5] = expr;
                 // sig[5] <= expr; + warning if expr contains fcalls.
 
-                Object *ref = *j;
-                Assign *ass = hif::getNearestParent<Assign>(ref);
+                auto *ass = hif::getNearestParent<Assign>(ref);
                 messageAssert(ass != nullptr, "Parent assign not found", ref, sem);
 
                 Assign *sigAss      = hif::copy(ass);
-                const bool hasDelay = (ass->getDelay() != nullptr);
+                bool hasDelay = (ass->getDelay() != nullptr);
 
                 hif::objectSetName(ref, varName);
                 hif::semantics::setDeclaration(ref, var);
@@ -1268,7 +1283,7 @@ void _refineToVariables(
                     delete sigAss->setRightHandSide(hif::copy(ass->getLeftHandSide()));
                 } else {
                     hif::HifTypedQuery<FunctionCall> q;
-                    q.collectObjectMethod = &_skipStandardFunctionCall;
+                    q.check_object_method = &skipStandardFunctionCall;
                     std::list<Object *> list;
                     hif::search(list, ass->getRightHandSide(), q);
 
@@ -1279,7 +1294,7 @@ void _refineToVariables(
 
                 // We ceannot just skip cone related to current decl!
                 // ref design: verilog/yogitech/m6502
-                Procedure *parentCone = _getParentCone(ref, conesMap);
+                Procedure *parentCone = getParentCone(ref, conesMap);
                 if (parentCone != nullptr) {
                     // Inside cone: skip!
                     delete sigAss;
@@ -1293,24 +1308,23 @@ void _refineToVariables(
             readUsing.insert(infos.readUsing.begin(), infos.readUsing.end());
             readUsing.insert(infos.rhsContinuousUsing.begin(), infos.rhsContinuousUsing.end());
 
-            for (RefSet::iterator j = readUsing.begin(); j != readUsing.end(); ++j) {
+            for (auto *ref : readUsing) {
                 // Replace sig with var
 
-                Object *ref = *j;
                 hif::objectSetName(ref, varName);
                 hif::semantics::setDeclaration(ref, var);
             }
 
             // Adding writing of var with sig as source in case of non-blocking
             if (!infos.lhsNonBlockingUsing.empty()) {
-                BaseContents *bc = _getBaseContents(decl);
+                BaseContents *bc = getBaseContents(decl);
 
                 // check if decl cones method is already creaded, otherwise create it
                 if (conesMap.find(decl) == conesMap.end()) {
                     std::string pName =
                         hif::NameTable::getInstance()->getFreshName((std::string("hif_cone_") + decl->getName()));
                     Procedure *cone =
-                        static_cast<Procedure *>(f.subprogram(nullptr, pName, f.noTemplates(), f.noParameters()));
+                        dynamic_cast<Procedure *>(f.subprogram(nullptr, pName, f.noTemplates(), f.noParameters()));
                     bc->declarations.push_back(cone);
                     StateTable *st = f.stateTable("hif_cone", f.noDeclarations(), f.noActions());
                     cone->setStateTable(st);
@@ -1319,7 +1333,7 @@ void _refineToVariables(
                     // use temporary map to add missings cones calls.
                     ConesMap tmp;
                     tmp[decl] = cone;
-                    _addConesPCalls(infoMap, sem, tmp, callsMap);
+                    addConesPCalls(infoMap, sem, tmp, callsMap);
                 }
 
                 // added if inside cone function to assure synchronization between
@@ -1328,7 +1342,7 @@ void _refineToVariables(
                 // adding a decl_old
                 std::string dOldName =
                     hif::NameTable::getInstance()->getFreshName((std::string("old_") + decl->getName()));
-                Variable *declOld = new Variable();
+                auto *declOld = new Variable();
                 declOld->setType(hif::copy(decl->getType()));
                 declOld->setValue(hif::copy(decl->getValue()));
                 declOld->setName(dOldName);
@@ -1358,10 +1372,10 @@ void _refineToVariables(
                         conesMap[decl]->getName(), nullptr, f.noTemplateArguments(), f.noParameterArguments()));
                 }
 
-                for (SensitivityMap::mapped_type::iterator k = sensMap[decl].begin(); k != sensMap[decl].end(); ++k) {
-                    process->sensitivity.push_back(f.identifier((*k)->getName()));
+                for (auto *k : sensMap[decl]) {
+                    process->sensitivity.push_back(f.identifier(k->getName()));
                 }
-                BaseContents *bc = _getBaseContents(decl);
+                BaseContents *bc = getBaseContents(decl);
                 bc->stateTables.push_back(process);
             }
         }
@@ -1389,38 +1403,43 @@ void _refineToVariables(
 // Partial flattening
 // /////////////////////////////////////////////////////////////////////////////
 
-void _collectOnOutputPorts(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/, Views &views)
+void collectOnOutputPorts(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/, Views &views)
 {
     // Output ports assigned by continuous assignments are replaced with explicit
     // processes.
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
-        Port *p = dynamic_cast<Port *>(i->first);
-        if (p == nullptr)
+    for (auto &i : refMap) {
+        Port *p = dynamic_cast<Port *>(i.first);
+        if (p == nullptr) {
             continue;
-        if (p->getDirection() != dir_out && p->getDirection() != dir_inout)
+        }
+        if (p->getDirection() != dir_out && p->getDirection() != dir_inout) {
             continue;
+        }
 
-        for (RefSet::iterator j = i->second.begin(); j != i->second.end(); ++j) {
-            Object *symb        = *j;
-            PortAssign *portAss = dynamic_cast<PortAssign *>(symb);
-            if (portAss != nullptr)
+        for (auto *symb : i.second) {
+            auto *portAss = dynamic_cast<PortAssign *>(symb);
+            if (portAss != nullptr) {
                 continue;
-            if (!hif::manipulation::isInLeftHandSide(symb))
+            }
+            if (!hif::manipulation::isInLeftHandSide(symb)) {
                 continue;
-            GlobalAction *gact = hif::getNearestParent<GlobalAction>(symb);
-            if (gact == nullptr)
+            }
+            auto *gact = hif::getNearestParent<GlobalAction>(symb);
+            if (gact == nullptr) {
                 continue;
+            }
 
             View *v = hif::getNearestParent<View>(symb);
-            if (v == nullptr)
+            if (v == nullptr) {
                 continue;
+            }
             views.insert(v);
             break;
         }
     }
 }
 
-void _fillViewSets(
+void fillViewSets(
     DataDeclaration *decl,
     InfoStruct &infos,
     Views &views,
@@ -1429,8 +1448,9 @@ void _fillViewSets(
 {
     if (dynamic_cast<Port *>(decl) != nullptr) {
         View *v = hif::getNearestParent<View>(decl);
-        if (v != nullptr)
+        if (v != nullptr) {
             views.insert(v);
+        }
     }
 
     if (!infos.portUsing.empty()) {
@@ -1439,83 +1459,83 @@ void _fillViewSets(
         PortAssign::DeclarationType *port = hif::semantics::getDeclaration(portAss, sem);
         messageAssert(port != nullptr, "Declaration not found", portAss, sem);
         View *v = hif::getNearestParent<View>(decl);
-        if (v != nullptr)
+        if (v != nullptr) {
             views.insert(v);
+        }
     }
 
-    for (RefSet::iterator i = infos.bindUsing.begin(); i != infos.bindUsing.end(); ++i) {
-        Instance *inst = hif::getNearestParent<Instance>(*i);
-        if (inst == nullptr)
+    for (auto *i : infos.bindUsing) {
+        auto *inst = hif::getNearestParent<Instance>(i);
+        if (inst == nullptr) {
             continue;
-        ViewReference *vr = dynamic_cast<ViewReference *>(inst->getReferencedType());
-        if (vr == nullptr)
+        }
+        auto *vr = dynamic_cast<ViewReference *>(inst->getReferencedType());
+        if (vr == nullptr) {
             continue;
+        }
         viewRefs.insert(vr);
     }
 }
 
-void _collectOnAssigns(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, Views &views, ViewRefs &viewRefs)
+void collectOnAssigns(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem, Views &views, ViewRefs &viewRefs)
 {
-    for (InfoMap::iterator i = infoMap.begin(); i != infoMap.end(); ++i) {
-        DataDeclaration *decl = i->first;
-        InfoStruct &infos     = i->second;
+    for (auto &i : infoMap) {
+        DataDeclaration *decl = i.first;
+        InfoStruct &infos     = i.second;
 
         bool isConnectionSignal = false;
         bool isSignal           = false;
         bool isVariable         = false;
-        _calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, decl);
+        calculateRequiredDeclType(isConnectionSignal, isSignal, isVariable, infos, decl);
 
         if ((isSignal && !isVariable)) {
             // nothing to do since is already a signal.
             continue;
-        } else if ((isVariable && !isSignal) || (!isVariable && !isSignal)) {
+        }
+        if ((isVariable && !isSignal) || (!isVariable && !isSignal)) {
             // ntd
         } else // (isVariable && isSignal) || isOutputPort
         {
-            if (isConnectionSignal)
-                _fillViewSets(decl, infos, views, viewRefs, sem);
+            if (isConnectionSignal) {
+                fillViewSets(decl, infos, views, viewRefs, sem);
+            }
         }
     }
 }
 
-void _performPartialFlattening(
-    System *system,
-    Views &views,
-    ViewRefs &viewRefs,
-    hif::semantics::ILanguageSemantics *sem)
+void performPartialFlattening(System *system, Views &views, ViewRefs &viewRefs, hif::semantics::ILanguageSemantics *sem)
 {
-    if (views.empty() && viewRefs.empty())
+    if (views.empty() && viewRefs.empty()) {
         return;
+    }
 
     hif::manipulation::FlattenDesignOptions fopt;
     fopt.verbose = true;
 
-    for (Views::iterator i = views.begin(); i != views.end(); ++i) {
-        View *view = *i;
+    for (auto *view : views) {
         fopt.rootDUs.insert(hif::manipulation::buildHierarchicalSymbol(view, sem));
     }
 
-    for (ViewRefs::iterator i = viewRefs.begin(); i != viewRefs.end(); ++i) {
-        ViewReference *viewRef = *i;
+    for (auto *viewRef : viewRefs) {
         fopt.rootInstances.insert(hif::manipulation::buildHierarchicalSymbol(viewRef, sem));
     }
 
     hif::manipulation::flattenDesign(system, sem, fopt);
 }
 
-bool _checkTopViews(Views &views, Views &topViews)
+auto checkTopViews(Views &views, Views &topViews) -> bool
 {
-    for (Views::iterator i = views.begin(); i != views.end(); ++i) {
-        View *v = *i;
-        if (topViews.find(v) != topViews.end())
+    for (auto *v : views) {
+        if (topViews.find(v) != topViews.end()) {
             continue;
+        }
         return false;
     }
 
     return true;
 }
 
-void _performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/)
+void performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSemantics * /*sem*/)
 {
     // Check non-determinism basic FSM-like case.
     // E.g.:
@@ -1530,35 +1550,40 @@ void _performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSeman
     ProcessesMap processesMap;
 
     // Collecting candiadate declarations
-    for (RefMap::iterator i = refMap.begin(); i != refMap.end(); ++i) {
-        Declaration *decl = i->first;
-        RefSet &refSet    = i->second;
-        Signal *sigDecl   = dynamic_cast<Signal *>(decl);
+    for (auto &i : refMap) {
+        Declaration *decl = i.first;
+        RefSet &refSet    = i.second;
+        auto *sigDecl     = dynamic_cast<Signal *>(decl);
         Port *portDecl    = dynamic_cast<Port *>(decl);
         if ((sigDecl == nullptr && portDecl == nullptr) ||
-            (portDecl != nullptr && portDecl->getDirection() == hif::dir_in))
+            (portDecl != nullptr && portDecl->getDirection() == hif::dir_in)) {
             continue;
+        }
 
-        for (RefSet::iterator j = refSet.begin(); j != refSet.end(); ++j) {
-            Object *symbol = *j;
+        for (auto *symbol : refSet) {
             // Must be in process body
-            State *state   = getNearestParent<State>(symbol);
-            if (state == nullptr)
+            auto *state = getNearestParent<State>(symbol);
+            if (state == nullptr) {
                 continue;
-            StateTable *process = dynamic_cast<StateTable *>(state->getParent());
-            SubProgram *sub     = dynamic_cast<SubProgram *>(process->getParent());
-            if (sub != nullptr)
+            }
+            auto *process = dynamic_cast<StateTable *>(state->getParent());
+            auto *sub     = dynamic_cast<SubProgram *>(process->getParent());
+            if (sub != nullptr) {
                 continue; // Too hard to check!
+            }
             // Skip possible initial() processes:
-            if (process->getFlavour() == hif::pf_initial || process->getFlavour() == hif::pf_analog)
+            if (process->getFlavour() == hif::pf_initial || process->getFlavour() == hif::pf_analog) {
                 continue;
+            }
             // Must be written as blocking
-            const bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
-            if (!isTarget)
+            bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
+            if (!isTarget) {
                 continue;
-            Assign *ass = hif::getNearestParent<Assign>(symbol);
-            if (ass->checkProperty(NONBLOCKING_ASSIGNMENT))
+            }
+            auto *ass = hif::getNearestParent<Assign>(symbol);
+            if (ass->checkProperty(NONBLOCKING_ASSIGNMENT)) {
                 continue;
+            }
             // Collecting
             collectedDecls.insert(decl);
             processesMap[decl].insert(process);
@@ -1567,30 +1592,33 @@ void _performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSeman
 
     // Checking collected candiadate declarations
     hif::application_utils::WarningSet warnings;
-    for (Declarations::iterator i = collectedDecls.begin(); i != collectedDecls.end(); ++i) {
-        Declaration *decl = *i;
-        RefSet &refSet    = refMap[decl];
-        for (RefSet::iterator j = refSet.begin(); j != refSet.end(); ++j) {
-            Object *symbol = *j;
+    for (auto *decl : collectedDecls) {
+        RefSet &refSet = refMap[decl];
+        for (auto *symbol : refSet) {
             // Must be in process body
-            State *state   = getNearestParent<State>(symbol);
-            if (state == nullptr)
+            auto *state = getNearestParent<State>(symbol);
+            if (state == nullptr) {
                 continue;
-            StateTable *process = dynamic_cast<StateTable *>(state->getParent());
-            SubProgram *sub     = dynamic_cast<SubProgram *>(process->getParent());
-            if (sub != nullptr)
+            }
+            auto *process = dynamic_cast<StateTable *>(state->getParent());
+            auto *sub     = dynamic_cast<SubProgram *>(process->getParent());
+            if (sub != nullptr) {
                 continue; // Too hard to check!
+            }
             // Skip possible initial() processes:
-            if (process->getFlavour() == hif::pf_initial || process->getFlavour() == hif::pf_analog)
+            if (process->getFlavour() == hif::pf_initial || process->getFlavour() == hif::pf_analog) {
                 continue;
+            }
             // Skip processes that both write and read: this should become
             // a local variable!
-            if (processesMap[decl].find(process) != processesMap[decl].end())
+            if (processesMap[decl].find(process) != processesMap[decl].end()) {
                 continue;
+            }
             // Must be read
-            const bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
-            if (isTarget)
+            bool isTarget = hif::manipulation::isInLeftHandSide(symbol);
+            if (isTarget) {
                 continue;
+            }
             // Check sensitivities!
             typedef hif::HifTypedQuery<Identifier> Query;
             Query query;
@@ -1600,8 +1628,9 @@ void _performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSeman
             hif::search(results, process->sensitivity, query);
             hif::search(results, process->sensitivityPos, query);
             hif::search(results, process->sensitivityNeg, query);
-            if (!results.empty())
+            if (!results.empty()) {
                 continue;
+            }
             warnings.insert(decl);
             break;
         }
@@ -1616,24 +1645,25 @@ void _performOriginalDesignChecks(RefMap &refMap, hif::semantics::ILanguageSeman
         warnings);
 }
 
-void _partialFlattening(
+void partialFlattening(
     System *system,
     Views &topViews,
     RefMap &refMap,
     hif::semantics::ILanguageSemantics *sem,
-    const bool preserveStructure)
+    bool preserveStructure)
 {
     // Flattening performed only when preserveStructure is false.
-    if (preserveStructure)
+    if (preserveStructure) {
         return;
+    }
 
     // Unreferenced signal can be safely translated as variables.
-    _fixUnreferenced(refMap, sem);
+    fixUnreferenced(refMap, sem);
 
     Views views;
     ViewRefs viewRefs;
     // Output ports assigned by continuous assignments are collected to be flattened.
-    _collectOnOutputPorts(refMap, sem, views);
+    collectOnOutputPorts(refMap, sem, views);
 
     // FIXME: after partially flattening the input description once, the resulting
     //        description may contain new troublesome assignments (i.e., raise new
@@ -1645,22 +1675,23 @@ void _partialFlattening(
     //        only once.
 
     hif::semantics::GetReferencesOptions opt;
-    opt.includeUnreferenced = true;
+    opt.include_unreferenced = true;
 
     for (;;) {
         // Filling info map.
         InfoMap infoMap;
-        _fillInfoMap(refMap, infoMap, false);
+        fillInfoMap(refMap, infoMap, false);
 
         // Collecting output ports targets of blocking/continuous assignments
-        _collectOnAssigns(infoMap, sem, views, viewRefs);
+        collectOnAssigns(infoMap, sem, views, viewRefs);
 
         // Flattening design
-        const bool isOnlyTop       = _checkTopViews(views, topViews);
-        const bool needsFlattening = ((!views.empty() && !isOnlyTop) || !viewRefs.empty());
-        if (!needsFlattening)
+        bool isOnlyTop       = checkTopViews(views, topViews);
+        bool needsFlattening = ((!views.empty() && !isOnlyTop) || !viewRefs.empty());
+        if (!needsFlattening) {
             break;
-        _performPartialFlattening(system, views, viewRefs, sem);
+        }
+        performPartialFlattening(system, views, viewRefs, sem);
 
         // Resetting infos
         refMap.clear();
@@ -1673,7 +1704,7 @@ void _partialFlattening(
     }
 }
 
-void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics *sem, const bool preserveStructure)
+void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics *sem, bool preserveStructure)
 {
     // ///////////////////////////////////////////////////////////////////
     // Ensuring no concats as targets.
@@ -1694,19 +1725,19 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // //////////////////////////////////////////////////////////////////
     RefMap refMap;
     hif::semantics::GetReferencesOptions opt;
-    opt.includeUnreferenced = true;
+    opt.include_unreferenced = true;
     hif::semantics::getAllReferences(refMap, sem, o, opt);
     hif::semantics::typeTree(o, sem);
 
     // ///////////////////////////////////////////////////////////////////
     // Prerefine checks
     // ///////////////////////////////////////////////////////////////////
-    _performOriginalDesignChecks(refMap, sem);
+    performOriginalDesignChecks(refMap, sem);
 
     // ///////////////////////////////////////////////////////////////////
     // Heuristic to avoid loops in logic cones.
     // ///////////////////////////////////////////////////////////////////
-    _splitLogicConesLoops(o, refMap, sem);
+    splitLogicConesLoops(o, refMap, sem);
     refMap.clear();
     hif::semantics::getAllReferences(refMap, sem, o, opt);
 
@@ -1726,7 +1757,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // ///////////////////////////////////////////////////////////////////
     // Partial flattening
     // ///////////////////////////////////////////////////////////////////
-    _partialFlattening(o, topViews, refMap, sem, preserveStructure);
+    partialFlattening(o, topViews, refMap, sem, preserveStructure);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     hif::writeFile("FIX3_2_after_partial_flattening", o, true);
@@ -1736,7 +1767,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // ///////////////////////////////////////////////////////////////////
     // Pre refinements
     // ///////////////////////////////////////////////////////////////////
-    _prerefineFixes(topViews, refMap, sem);
+    prerefineFixes(topViews, refMap, sem);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     hif::writeFile("FIX3_3_after_prerefine_fixes", o, true);
@@ -1747,7 +1778,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // Filling info map
     // ///////////////////////////////////////////////////////////////////
     InfoMap infoMap;
-    _fillInfoMap(refMap, infoMap, true);
+    fillInfoMap(refMap, infoMap, true);
 
     // ///////////////////////////////////////////////////////////////////
     // Fix logic cones
@@ -1755,7 +1786,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     ConesMap conesMap;
     CallsMap callsMap;
     SensitivityMap sensMap;
-    _fixLogicCones(refMap, infoMap, conesMap, sem, callsMap, sensMap);
+    fixLogicCones(refMap, infoMap, conesMap, sem, callsMap, sensMap);
 
 #ifdef DBG_PRINT_FIX3_STEP_FILES
     hif::writeFile("FIX3_4_after_fix_logic_cones", o, true);
@@ -1765,5 +1796,5 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // ///////////////////////////////////////////////////////////////////
     // Refine in variables
     // ///////////////////////////////////////////////////////////////////
-    _refineToVariables(refMap, infoMap, conesMap, sem, callsMap, sensMap);
+    refineToVariables(refMap, infoMap, conesMap, sem, callsMap, sensMap);
 }

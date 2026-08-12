@@ -1,6 +1,7 @@
 /// @file FixDescription_2.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -23,20 +24,20 @@ using namespace hif;
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-typedef hif::semantics::ReferencesMap RefMap;
+using RefMap = hif::semantics::ReferencesMap;
 
-bool _fixFunctionReturnVariable(Object *o, std::string function_name)
+auto fixFunctionReturnVariable(Object *o, std::string function_name) -> bool
 {
-    Identifier *no = dynamic_cast<Identifier *>(o);
+    auto *no = dynamic_cast<Identifier *>(o);
     if (no != nullptr) {
-        if (function_name.compare(no->getName()) == 0) {
+        if (function_name == no->getName()) {
             function_name.append("_return");
             no->setName(function_name);
         }
     } else {
-        Variable *vo = dynamic_cast<Variable *>(o);
+        auto *vo = dynamic_cast<Variable *>(o);
         if (vo != nullptr) {
-            if (function_name.compare(vo->getName()) == 0) {
+            if (function_name == vo->getName()) {
                 function_name.append("_return");
                 vo->setName(function_name);
             }
@@ -45,60 +46,64 @@ bool _fixFunctionReturnVariable(Object *o, std::string function_name)
     return true;
 }
 
-void _fixRange(Range *r, RangeDirection d, hif::semantics::ILanguageSemantics *sem)
+void fixRange(Range *r, RangeDirection d, hif::semantics::ILanguageSemantics *sem)
 {
     hif::manipulation::simplify(r->getLeftBound(), sem);
     hif::manipulation::simplify(r->getRightBound(), sem);
 
     if (dynamic_cast<IntValue *>(r->getLeftBound()) != nullptr &&
         dynamic_cast<IntValue *>(r->getRightBound()) != nullptr) {
-        long long int lbound, rbound;
+        long long int lbound = 0;
+        long long int rbound = 0;
 
-        lbound = (static_cast<IntValue *>(r->getLeftBound()))->getValue();
-        rbound = (static_cast<IntValue *>(r->getRightBound()))->getValue();
+        lbound = (dynamic_cast<IntValue *>(r->getLeftBound()))->getValue();
+        rbound = (dynamic_cast<IntValue *>(r->getRightBound()))->getValue();
 
-        if (lbound > rbound)
+        if (lbound > rbound) {
             r->setDirection(dir_downto);
-        else if (lbound < rbound)
+        } else if (lbound < rbound) {
             r->setDirection(dir_upto);
-        else
+        } else {
             r->setDirection(d);
+        }
     } else {
         r->setDirection(d);
     }
 }
 
-int _getSignalEdge(StateTable *process, const std::string &signalName)
+auto getSignalEdge(StateTable *process, const std::string &signalName) -> int
 {
     BList<Value>::iterator it;
     for (it = process->sensitivityPos.begin(); it != process->sensitivityPos.end(); ++it) {
-        Identifier *id = dynamic_cast<Identifier *>(*it);
+        auto *id = dynamic_cast<Identifier *>(*it);
         messageAssert(id != nullptr, "Expected identifier", *it, nullptr);
-        if (id->getName() == signalName)
+        if (id->getName() == signalName) {
             return 1;
+        }
     }
     for (it = process->sensitivityNeg.begin(); it != process->sensitivityNeg.end(); ++it) {
-        Identifier *id = dynamic_cast<Identifier *>(*it);
+        auto *id = dynamic_cast<Identifier *>(*it);
         messageAssert(id != nullptr, "Expected identifier", *it, nullptr);
-        if (id->getName() == signalName)
+        if (id->getName() == signalName) {
             return -1;
+        }
     }
     return 0;
 }
 
-void _createClockedCondition(BList<Action> &actions, const std::string &clockName, const int clock_edge)
+void createClockedCondition(BList<Action> &actions, const std::string &clockName, const int clock_edge)
 {
-    ParameterAssign *pao = new ParameterAssign();
+    auto *pao = new ParameterAssign();
     pao->setName("clock");
     pao->setValue(new Identifier(clockName));
 
     std::string call = (clock_edge == 1) ? "__hif_rising_edge" : "__hif_falling_edge";
 
-    FunctionCall *fco = new FunctionCall();
+    auto *fco = new FunctionCall();
     fco->parameterAssigns.push_back(pao);
     fco->setName(call);
 
-    IfAlt *ncao = new IfAlt();
+    auto *ncao = new IfAlt();
     ncao->setCondition(fco);
     ncao->actions.merge(actions);
 
@@ -110,7 +115,7 @@ void _createClockedCondition(BList<Action> &actions, const std::string &clockNam
 
 // Assuming two signals, clock and reset, detect which one is the clock
 // basing on the edges of signals.
-std::string _detectClockSignal(StateTable *process)
+auto detectClockSignal(StateTable *process) -> std::string
 {
     messageAssert(process != nullptr, "Unexpected nullptr process", process, nullptr);
     size_t listsSize = process->sensitivity.size() + process->sensitivityPos.size() + process->sensitivityNeg.size();
@@ -119,60 +124,65 @@ std::string _detectClockSignal(StateTable *process)
 
     // If only one element is defined, it must be the clock.
     if (listsSize == 1) {
-        if (!process->sensitivity.empty())
+        if (!process->sensitivity.empty()) {
             sig = process->sensitivity.front();
-        else if (!process->sensitivityPos.empty())
+        } else if (!process->sensitivityPos.empty()) {
             sig = process->sensitivityPos.front();
-        else if (!process->sensitivityNeg.empty())
+        } else if (!process->sensitivityNeg.empty()) {
             sig = process->sensitivityNeg.front();
+        }
     }
     // With two or more elements in the sensitivity lists, the only chance
     // is that only one of them is edge-defined.
     else if (listsSize >= 2) {
         // More than one element is edge-defined, fail.
-        if (listsSize - process->sensitivity.size() > 1)
+        if (listsSize - process->sensitivity.size() > 1) {
             return nullptr;
+        }
 
         // All elements are edge-defined, fail.
-        if (process->sensitivity.empty())
+        if (process->sensitivity.empty()) {
             return nullptr;
+        }
 
         // The only edge-defined one must be the clock.
-        if (!process->sensitivityPos.empty())
+        if (!process->sensitivityPos.empty()) {
             sig = process->sensitivityPos.front();
-        else if (!process->sensitivityNeg.empty())
+        } else if (!process->sensitivityNeg.empty()) {
             sig = process->sensitivityNeg.front();
+        }
     }
 
-    Identifier *sigId = dynamic_cast<Identifier *>(sig);
-    if (sigId == nullptr)
+    auto *sigId = dynamic_cast<Identifier *>(sig);
+    if (sigId == nullptr) {
         return nullptr;
+    }
     return sigId->getName();
 }
 
-typedef std::list<StateTable *> InitialProcesses;
+using InitialProcesses = std::list<StateTable *>;
 
-bool collectObjectMethod(Object *o, const HifQueryBase *)
+auto check_object_method(Object *o, const HifQueryBase * /*unused*/) -> bool
 {
     if (dynamic_cast<Wait *>(o) != nullptr) {
         return true;
-    } else if (dynamic_cast<Assign *>(o) != nullptr) {
-        Assign *ass = static_cast<Assign *>(o);
+    }
+    if (dynamic_cast<Assign *>(o) != nullptr) {
+        auto *ass = dynamic_cast<Assign *>(o);
         return (ass->getDelay() != nullptr);
-    } else if (dynamic_cast<Expression *>(o) != nullptr) {
+    }
+    if (dynamic_cast<Expression *>(o) != nullptr) {
         hif::semantics::ILanguageSemantics *sem = hif::semantics::VerilogSemantics::getInstance();
-        Expression *e                           = static_cast<Expression *>(o);
-        if (e->getOperator() != op_deref)
+        auto *e                                 = dynamic_cast<Expression *>(o);
+        if (e->getOperator() != op_deref) {
             return false;
+        }
 
         Type *exprType = hif::semantics::getBaseType(hif::semantics::getSemanticType(e, sem), false, sem);
         messageAssert(exprType != nullptr, "Cannot type expression", e, sem);
 
-        Event *event = dynamic_cast<Event *>(exprType);
-        if (event == nullptr)
-            return false;
-
-        return true;
+        auto *event = dynamic_cast<Event *>(exprType);
+        return event != nullptr;
     }
 
     return false;
@@ -197,44 +207,44 @@ class FixDescription_2 : public hif::GuideVisitor
 {
 public:
     FixDescription_2(RefMap &refMap, hif::semantics::ILanguageSemantics *sem);
-    virtual ~FixDescription_2();
+    ~FixDescription_2() override;
 
-    int visitDesignUnit(hif::DesignUnit &o);
-    int visitValueTP(hif::ValueTP &o);
+    auto visitDesignUnit(hif::DesignUnit &o) -> int override;
+    auto visitValueTP(hif::ValueTP &o) -> int override;
     /// @brief Performs the following fixes:
     /// - separates Const from other declarations. On these ones calls a visitor
     /// 	to fix the kind of assignment
-    int visitContents(hif::Contents &o);
-    int visitExpression(Expression &o);
-    int visitInt(hif::Int &o);
-    int visitSlice(hif::Slice &o);
-    int visitFunction(hif::Function &o);
+    auto visitContents(hif::Contents &o) -> int override;
+    auto visitExpression(Expression &o) -> int override;
+    auto visitInt(hif::Int &o) -> int override;
+    auto visitSlice(hif::Slice &o) -> int override;
+    auto visitFunction(hif::Function &o) -> int override;
 
     // constant
-    virtual int visitBitValue(hif::BitValue &o);
-    virtual int visitBitvectorValue(hif::BitvectorValue &o);
-    virtual int visitBoolValue(hif::BoolValue &o);
-    virtual int visitCharValue(hif::CharValue &o);
-    virtual int visitIntValue(hif::IntValue &o);
-    virtual int visitRealValue(hif::RealValue &o);
-    virtual int visitStringValue(hif::StringValue &o);
+    auto visitBitValue(hif::BitValue &o) -> int override;
+    auto visitBitvectorValue(hif::BitvectorValue &o) -> int override;
+    auto visitBoolValue(hif::BoolValue &o) -> int override;
+    auto visitCharValue(hif::CharValue &o) -> int override;
+    auto visitIntValue(hif::IntValue &o) -> int override;
+    auto visitRealValue(hif::RealValue &o) -> int override;
+    auto visitStringValue(hif::StringValue &o) -> int override;
 
     /// @name fix timescale and time related symbols
     /// @{
 
-    virtual int visitAssign(Assign &o);
-    virtual int visitConst(Const &o);
-    virtual int visitFunctionCall(FunctionCall &o);
-    virtual int visitSignal(Signal &o);
-    virtual int visitSystem(System &o);
-    virtual int visitVariable(Variable &o);
-    virtual int visitView(View &o);
-    virtual int visitWait(Wait &o);
+    auto visitAssign(Assign &o) -> int override;
+    auto visitConst(Const &o) -> int override;
+    auto visitFunctionCall(FunctionCall &o) -> int override;
+    auto visitSignal(Signal &o) -> int override;
+    auto visitSystem(System &o) -> int override;
+    auto visitVariable(Variable &o) -> int override;
+    auto visitView(View &o) -> int override;
+    auto visitWait(Wait &o) -> int override;
 
     /// @}
 
-    virtual int visitParameterAssign(ParameterAssign &o);
-    virtual int visitPortAssign(PortAssign &o);
+    auto visitParameterAssign(ParameterAssign &o) -> int override;
+    auto visitPortAssign(PortAssign &o) -> int override;
 
 private:
     void _fixConstValue(hif::ConstValue &o);
@@ -257,44 +267,42 @@ private:
 
     //@}
 
-    void _collectInitialProcesses(Contents *c, InitialProcesses &initialProcesses);
+    static void _collectInitialProcesses(Contents *c, InitialProcesses &initialProcesses);
     void _splitInitialProcesses(Contents *c, InitialProcesses &initialProcesses);
-    void _mergeInitialProcesses(InitialProcesses &initialProcesses);
+    static void _mergeInitialProcesses(InitialProcesses &initialProcesses);
 
     void _manageWaitActions(Wait *o);
     void _checkViewTimeScale();
     void _scaleTimeValue(Value *v);
 
-    bool _checkWrongStatement(Object *root);
+    auto _checkWrongStatement(Object *root) -> bool;
 
-    FixDescription_2(const FixDescription_2 &);
-    FixDescription_2 operator=(const FixDescription_2 &);
+    FixDescription_2(const FixDescription_2 &)                     = delete;
+    auto operator=(const FixDescription_2 &) -> FixDescription_2 & = delete;
 
     RefMap &_refMap;
     hif::semantics::ILanguageSemantics *_sem;
 
     hif::HifFactory _factory;
 
-    View *_currentView;
-    System *_currentSystem;
+    View *_currentView{nullptr};
+    System *_currentSystem{nullptr};
 
-    bool _addedDefaultTimeScale;
+    bool _addedDefaultTimeScale{false};
 };
 
 FixDescription_2::FixDescription_2(RefMap &refMap, hif::semantics::ILanguageSemantics *sem)
     : _refMap(refMap)
     , _sem(sem)
     , _factory(sem)
-    , _currentView(nullptr)
-    , _currentSystem(nullptr)
-    , _addedDefaultTimeScale(false)
+
 {
     hif::application_utils::initializeLogHeader("VERILOG2HIF", "FixDescription_2");
 }
 
 FixDescription_2::~FixDescription_2() { hif::application_utils::restoreLogHeader(); }
 
-int FixDescription_2::visitDesignUnit(DesignUnit &o)
+auto FixDescription_2::visitDesignUnit(DesignUnit &o) -> int
 {
     messageAssert(o.views.size() == 1, "Wrong design unit with more than one view", &o, _sem);
 
@@ -320,7 +328,7 @@ int FixDescription_2::visitDesignUnit(DesignUnit &o)
     return 0;
 }
 
-int FixDescription_2::visitFunction(Function &o)
+auto FixDescription_2::visitFunction(Function &o) -> int
 {
     GuideVisitor::visitFunction(o);
 
@@ -329,17 +337,18 @@ int FixDescription_2::visitFunction(Function &o)
     // append the suffix "_return" to all Identifier, in the Function body,
     // refering to the variable used for return value
     // (this variable has the same name of the function)
-    hif::apply::visit(&o, _fixFunctionReturnVariable, funName);
+    hif::apply::visit(&o, fixFunctionReturnVariable, funName);
 
     return 0;
 }
 
-int FixDescription_2::visitValueTP(ValueTP &o)
+auto FixDescription_2::visitValueTP(ValueTP &o) -> int
 {
     GuideVisitor::visitValueTP(o);
 
-    if (o.getType() != nullptr)
+    if (o.getType() != nullptr) {
         return 0;
+    }
     messageAssert(o.getValue() != nullptr, "Expected initial value", &o, _sem);
     Type *to = hif::semantics::getSemanticType(o.getValue(), _sem);
     if (to == nullptr) {
@@ -350,7 +359,7 @@ int FixDescription_2::visitValueTP(ValueTP &o)
     return 0;
 }
 
-int FixDescription_2::visitContents(Contents &o)
+auto FixDescription_2::visitContents(Contents &o) -> int
 {
     // Managing decls:
     BList<Declaration> consts;
@@ -375,7 +384,7 @@ int FixDescription_2::visitContents(Contents &o)
     return 0;
 }
 
-int FixDescription_2::visitExpression(Expression &o)
+auto FixDescription_2::visitExpression(Expression &o) -> int
 {
     GuideVisitor::visitExpression(o);
 
@@ -397,18 +406,21 @@ int FixDescription_2::visitExpression(Expression &o)
         Type *type1 = hif::semantics::getSemanticType(o.getValue1(), _sem);
         messageAssert(type1 != nullptr, "Cannot type description", o.getValue1(), _sem);
         Type *type2 = nullptr;
-        if (o.getValue2() != nullptr)
+        if (o.getValue2() != nullptr) {
             type2 = hif::semantics::getSemanticType(o.getValue2(), _sem);
+        }
         messageAssert(o.getValue2() == nullptr || type2 != nullptr, "Cannot type description", o.getValue2(), _sem);
 
-        Bit *bb1        = dynamic_cast<Bit *>(type1);
-        Bitvector *bbv1 = dynamic_cast<Bitvector *>(type1);
-        Bit *bb2        = dynamic_cast<Bit *>(type2);
-        Bitvector *bbv2 = dynamic_cast<Bitvector *>(type2);
-        if (bb1 == nullptr && bbv1 == nullptr)
+        Bit *bb1   = dynamic_cast<Bit *>(type1);
+        auto *bbv1 = dynamic_cast<Bitvector *>(type1);
+        Bit *bb2   = dynamic_cast<Bit *>(type2);
+        auto *bbv2 = dynamic_cast<Bitvector *>(type2);
+        if (bb1 == nullptr && bbv1 == nullptr) {
             return 0;
-        if (o.getValue2() != nullptr && bb2 == nullptr && bbv2 == nullptr)
+        }
+        if (o.getValue2() != nullptr && bb2 == nullptr && bbv2 == nullptr) {
             return 0;
+        }
 
         const hif::Operator newOp = hif::operatorGetLogicBitwiseConversion(o.getOperator());
         o.setOperator(newOp);
@@ -425,7 +437,7 @@ int FixDescription_2::visitExpression(Expression &o)
     return 0;
 }
 
-int FixDescription_2::visitInt(Int &o)
+auto FixDescription_2::visitInt(Int &o) -> int
 {
     GuideVisitor::visitInt(o);
 
@@ -439,7 +451,7 @@ int FixDescription_2::visitInt(Int &o)
     return 0;
 }
 
-int FixDescription_2::visitSlice(Slice &o)
+auto FixDescription_2::visitSlice(Slice &o) -> int
 {
     GuideVisitor::visitSlice(o);
 
@@ -450,90 +462,94 @@ int FixDescription_2::visitSlice(Slice &o)
 
     Range *vr = hif::typeGetSpan(t, _sem);
 
-    _fixRange(r, vr->getDirection(), _sem);
+    fixRange(r, vr->getDirection(), _sem);
 
     return 0;
 }
 
-int FixDescription_2::visitBitValue(BitValue &o)
+auto FixDescription_2::visitBitValue(BitValue &o) -> int
 {
     GuideVisitor::visitBitValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitBitvectorValue(BitvectorValue &o)
+auto FixDescription_2::visitBitvectorValue(BitvectorValue &o) -> int
 {
     GuideVisitor::visitBitvectorValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitBoolValue(BoolValue &o)
+auto FixDescription_2::visitBoolValue(BoolValue &o) -> int
 {
     GuideVisitor::visitBoolValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitCharValue(CharValue &o)
+auto FixDescription_2::visitCharValue(CharValue &o) -> int
 {
     GuideVisitor::visitCharValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitIntValue(IntValue &o)
+auto FixDescription_2::visitIntValue(IntValue &o) -> int
 {
     GuideVisitor::visitIntValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitRealValue(RealValue &o)
+auto FixDescription_2::visitRealValue(RealValue &o) -> int
 {
     GuideVisitor::visitRealValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitStringValue(StringValue &o)
+auto FixDescription_2::visitStringValue(StringValue &o) -> int
 {
     GuideVisitor::visitStringValue(o);
     _fixConstValue(o);
     return 0;
 }
 
-int FixDescription_2::visitAssign(Assign &o)
+auto FixDescription_2::visitAssign(Assign &o) -> int
 {
     GuideVisitor::visitAssign(o);
-    if (o.getDelay() == nullptr)
+    if (o.getDelay() == nullptr) {
         return 0;
+    }
     _checkViewTimeScale();
     _scaleTimeValue(o.getDelay());
     return 0;
 }
 
-int FixDescription_2::visitConst(Const &o)
+auto FixDescription_2::visitConst(Const &o) -> int
 {
     GuideVisitor::visitConst(o);
-    if (dynamic_cast<Time *>(o.getType()) == nullptr)
+    if (dynamic_cast<Time *>(o.getType()) == nullptr) {
         return 0;
+    }
     _checkViewTimeScale();
     _scaleTimeValue(o.getValue());
     return 0;
 }
 
-int FixDescription_2::visitFunctionCall(FunctionCall &o)
+auto FixDescription_2::visitFunctionCall(FunctionCall &o) -> int
 {
     GuideVisitor::visitFunctionCall(o);
 
-    if (o.getName() != "_system_time" && o.getName() != "_system_stime" && o.getName() != "_system_realtime")
+    if (o.getName() != "_system_time" && o.getName() != "_system_stime" && o.getName() != "_system_realtime") {
         return 0;
+    }
 
     Time *t = dynamic_cast<Time *>(hif::semantics::getOtherOperandType(&o, _sem));
-    if (t == nullptr)
+    if (t == nullptr) {
         return 0;
+    }
 
     _checkViewTimeScale();
     _scaleTimeValue(&o);
@@ -541,39 +557,43 @@ int FixDescription_2::visitFunctionCall(FunctionCall &o)
     return 0;
 }
 
-int FixDescription_2::visitSignal(Signal &o)
+auto FixDescription_2::visitSignal(Signal &o) -> int
 {
     GuideVisitor::visitSignal(o);
-    if (dynamic_cast<Time *>(o.getType()) == nullptr)
+    if (dynamic_cast<Time *>(o.getType()) == nullptr) {
         return 0;
+    }
     _checkViewTimeScale();
-    if (o.getValue() == nullptr)
+    if (o.getValue() == nullptr) {
         o.setValue(_factory.realval(1.0));
+    }
     _scaleTimeValue(o.getValue());
     return 0;
 }
 
-int FixDescription_2::visitSystem(System &o)
+auto FixDescription_2::visitSystem(System &o) -> int
 {
     _currentSystem = &o;
     GuideVisitor::visitSystem(o);
     return 0;
 }
 
-int FixDescription_2::visitVariable(Variable &o)
+auto FixDescription_2::visitVariable(Variable &o) -> int
 {
     GuideVisitor::visitVariable(o);
 
-    if (dynamic_cast<Time *>(o.getType()) == nullptr)
+    if (dynamic_cast<Time *>(o.getType()) == nullptr) {
         return 0;
+    }
     _checkViewTimeScale();
-    if (o.getValue() == nullptr)
+    if (o.getValue() == nullptr) {
         o.setValue(_factory.realval(1.0));
+    }
     _scaleTimeValue(o.getValue());
     return 0;
 }
 
-int FixDescription_2::visitView(View &o)
+auto FixDescription_2::visitView(View &o) -> int
 {
     View *restore = _currentView;
     _currentView  = &o;
@@ -583,62 +603,67 @@ int FixDescription_2::visitView(View &o)
     return 0;
 }
 
-int FixDescription_2::visitWait(Wait &o)
+auto FixDescription_2::visitWait(Wait &o) -> int
 {
     GuideVisitor::visitWait(o);
     _manageWaitActions(&o);
 
-    if (o.getTime() == nullptr)
+    if (o.getTime() == nullptr) {
         return 0;
+    }
     _checkViewTimeScale();
     _scaleTimeValue(o.getTime());
 
     return 0;
 }
 
-int FixDescription_2::visitParameterAssign(ParameterAssign &o)
+auto FixDescription_2::visitParameterAssign(ParameterAssign &o) -> int
 {
     GuideVisitor::visitParameterAssign(o);
 
     Type *valT = hif::semantics::getSemanticType(o.getValue(), _sem);
     messageAssert(valT != nullptr, "Cannot type parameter assign value", o.getValue(), _sem);
 
-    String *valString = dynamic_cast<String *>(valT);
-    if (valString == nullptr)
+    auto *valString = dynamic_cast<String *>(valT);
+    if (valString == nullptr) {
         return 0;
+    }
 
     Type *passT = hif::semantics::getSemanticType(&o, _sem);
     messageAssert(passT != nullptr, "Cannot type parameter assign", &o, _sem);
 
-    Bitvector *passBv = dynamic_cast<Bitvector *>(passT);
-    if (passBv == nullptr)
+    auto *passBv = dynamic_cast<Bitvector *>(passT);
+    if (passBv == nullptr) {
         return 0;
+    }
 
     // to fix
     Parameter *p = hif::semantics::getDeclaration(&o, _sem);
     messageAssert(p != nullptr, "Declaration not found", &o, _sem);
 
     p->setType(_factory.string());
-    for (auto & itr : _refMap[p]) {
+    for (const auto &itr : _refMap[p]) {
         hif::semantics::resetTypes(itr, false);
     }
 
     return 0;
 }
 
-int FixDescription_2::visitPortAssign(PortAssign &o)
+auto FixDescription_2::visitPortAssign(PortAssign &o) -> int
 {
     GuideVisitor::visitPortAssign(o);
 
     Port *p = hif::semantics::getDeclaration(&o, _sem);
     messageAssert(p != nullptr, "Declaration not found", &o, _sem);
-    if (p->getDirection() == dir_in)
+    if (p->getDirection() == dir_in) {
         return 0;
+    }
 
     Type *paType = hif::semantics::getSemanticType(&o, _sem);
     messageAssert(paType != nullptr, "Cannot type portAssign", &o, _sem);
-    if (o.getValue() == nullptr)
+    if (o.getValue() == nullptr) {
         return 0;
+    }
     Type *valueType = hif::semantics::getSemanticType(o.getValue(), _sem);
     messageAssert(valueType != nullptr, "Cannot type portAssign value", o.getValue(), _sem);
 
@@ -669,8 +694,8 @@ int FixDescription_2::visitPortAssign(PortAssign &o)
     Value *transValueSize = hif::manipulation::transformValue(valueSizeSimpl, &tmp, _sem);
     delete valueSizeSimpl;
 
-    IntValue *paIvSize    = dynamic_cast<IntValue *>(transPaSize);
-    IntValue *valueIvSize = dynamic_cast<IntValue *>(transValueSize);
+    auto *paIvSize    = dynamic_cast<IntValue *>(transPaSize);
+    auto *valueIvSize = dynamic_cast<IntValue *>(transValueSize);
 
     if (paIvSize == nullptr || valueIvSize == nullptr) {
         delete transPaSize;
@@ -690,7 +715,7 @@ int FixDescription_2::visitPortAssign(PortAssign &o)
 
     // create a support signal and related continuos assign.
 
-    Signal *sig = new Signal();
+    auto *sig = new Signal();
     sig->setName(NameTable::getInstance()->getFreshName(p->getName(), "_partial_sig"));
     sig->setType(hif::copy(paType));
     Port *instPort = hif::manipulation::instantiate(&o, _sem);
@@ -700,7 +725,7 @@ int FixDescription_2::visitPortAssign(PortAssign &o)
         sig->setValue(_sem->getTypeDefaultValue(sig->getType(), p));
     }
 
-    BaseContents *bc = hif::getNearestParent<BaseContents>(&o);
+    auto *bc = hif::getNearestParent<BaseContents>(&o);
     messageAssert(bc != nullptr, "Cannot find parent contents", &o, _sem);
     bc->declarations.push_back(sig);
 
@@ -709,8 +734,9 @@ int FixDescription_2::visitPortAssign(PortAssign &o)
     Assign *ass = _factory.assignment(v, new Identifier(sig->getName()));
     o.setValue(new Identifier(sig->getName()));
 
-    if (bc->getGlobalAction() == nullptr)
+    if (bc->getGlobalAction() == nullptr) {
         bc->setGlobalAction(new GlobalAction());
+    }
     bc->getGlobalAction()->actions.push_back(ass);
 
     return 0;
@@ -718,12 +744,14 @@ int FixDescription_2::visitPortAssign(PortAssign &o)
 
 void FixDescription_2::_fixConstValue(ConstValue &o)
 {
-    if (o.getType() != nullptr)
+    if (o.getType() != nullptr) {
         return;
-    Range *r       = dynamic_cast<Range *>(o.getParent());
-    Aggregate *agg = dynamic_cast<Aggregate *>(o.getParent());
-    if (r != nullptr || agg != nullptr)
+    }
+    auto *r   = dynamic_cast<Range *>(o.getParent());
+    auto *agg = dynamic_cast<Aggregate *>(o.getParent());
+    if (r != nullptr || agg != nullptr) {
         return;
+    }
     o.setType(_sem->getTypeForConstant(&o));
 }
 
@@ -734,27 +762,30 @@ void FixDescription_2::_manageClockCondition(StateTable *process)
     messageAssert(process->states.size() == 1, "Unexpected states size", process, nullptr);
 
     // Assuming to have a filled sensitivity list (at least one).
-    if (process->sensitivity.empty() && process->sensitivityPos.empty() && process->sensitivityNeg.empty())
+    if (process->sensitivity.empty() && process->sensitivityPos.empty() && process->sensitivityNeg.empty()) {
         return;
+    }
 
     // If no clock has been passed, the process cannot be considered synch.
     size_t listsSize = process->sensitivity.size() + process->sensitivityPos.size() + process->sensitivityNeg.size();
 
     // Detect clock.
-    std::string clockName = _detectClockSignal(process);
+    std::string clockName = detectClockSignal(process);
 
     // Unable to detect the clock.
-    if (clockName.empty())
+    if (clockName.empty()) {
         return;
+    }
 
-    int clockEdge = _getSignalEdge(process, clockName);
+    int clockEdge = getSignalEdge(process, clockName);
 
     // Insert the "if..else if (rising_edge)".
     if (listsSize == 2) {
         // Asynch reset: thus the body of the process should already have
         // "if ( reset == 1 )". Thus, just insert a clock condition:
-        if (clockEdge == 0)
+        if (clockEdge == 0) {
             return;
+        }
 
         State *state = process->states.front();
         Action *ao   = state->actions.front();
@@ -762,12 +793,13 @@ void FixDescription_2::_manageClockCondition(StateTable *process)
         messageAssert(co != nullptr, "Unexpected non-IF action", ao, _sem);
         for (BList<IfAlt>::iterator i = co->alts.begin(); i != co->alts.end(); ++i) {
             // Skipping the first condition: should be the reset.
-            if (i == co->alts.begin())
+            if (i == co->alts.begin()) {
                 continue;
-            _createClockedCondition((*i)->actions, clockName, clockEdge);
+            }
+            createClockedCondition((*i)->actions, clockName, clockEdge);
         }
 
-        _createClockedCondition(co->defaults, clockName, clockEdge);
+        createClockedCondition(co->defaults, clockName, clockEdge);
 
         return;
     }
@@ -775,17 +807,19 @@ void FixDescription_2::_manageClockCondition(StateTable *process)
     messageDebugAssert(listsSize == 1, "Unexpecte case", nullptr, _sem);
     // Means: synchronous reset!
     // Reset means nothing, since should be already managed inside process actions.
-    if (clockEdge == 0)
+    if (clockEdge == 0) {
         return;
-    _createClockedCondition(process->states.front()->actions, clockName, clockEdge);
+    }
+    createClockedCondition(process->states.front()->actions, clockName, clockEdge);
 }
 
 void FixDescription_2::_collectInitialProcesses(Contents *c, InitialProcesses &initialProcesses)
 {
     for (BList<StateTable>::iterator i = c->stateTables.begin(); i != c->stateTables.end(); ++i) {
         StateTable *st = *i;
-        if (st->getFlavour() != pf_initial)
+        if (st->getFlavour() != pf_initial) {
             continue;
+        }
 
         initialProcesses.push_back(st);
     }
@@ -793,8 +827,7 @@ void FixDescription_2::_collectInitialProcesses(Contents *c, InitialProcesses &i
 
 void FixDescription_2::_splitInitialProcesses(Contents *c, InitialProcesses &initialProcesses)
 {
-    for (InitialProcesses::iterator i = initialProcesses.begin(); i != initialProcesses.end(); ++i) {
-        StateTable *st = *i;
+    for (auto *st : initialProcesses) {
         messageAssert(st->states.size() == 1, "Unexpected number of states", st, _sem);
 
         // Move actions after first wrong statement in a new non-initial process
@@ -817,8 +850,9 @@ void FixDescription_2::_splitInitialProcesses(Contents *c, InitialProcesses &ini
             afterWrongStatementActions.push_back(act);
         }
 
-        if (!found)
+        if (!found) {
             continue;
+        }
         messageAssert(!afterWrongStatementActions.empty(), "Wrong list size!", nullptr, _sem);
 
         // If found a wrong statement, create a new non-initial state table:
@@ -845,9 +879,10 @@ void FixDescription_2::_mergeInitialProcesses(InitialProcesses &initialProcesses
     // Merging all actions of all initial processes into the first
     // initial process state table.
     StateTable *initialSt = initialProcesses.front();
-    for (InitialProcesses::iterator i = initialProcesses.begin(); i != initialProcesses.end(); ++i) {
-        if (i == initialProcesses.begin())
+    for (auto i = initialProcesses.begin(); i != initialProcesses.end(); ++i) {
+        if (i == initialProcesses.begin()) {
             continue;
+        }
 
         StateTable *st = *i;
         initialSt->states.front()->actions.merge(st->states.front()->actions);
@@ -860,9 +895,10 @@ void FixDescription_2::_manageWaitActions(Wait *o)
 {
     ProcessFlavour flavour;
     const auto found = hif::objectGetProcessFlavour(o, flavour);
-    const bool isRtl = !found || flavour != pf_analog;
-    if (!isRtl)
+    bool isRtl = !found || flavour != pf_analog;
+    if (!isRtl) {
         return;
+    }
     messageAssert(o->isInBList(), "Unexpected object location in tree", o, _sem);
     BList<Action>::iterator it(o);
     it.insert_after(o->actions);
@@ -870,15 +906,17 @@ void FixDescription_2::_manageWaitActions(Wait *o)
 
 void FixDescription_2::_checkViewTimeScale()
 {
-    if (_currentView == nullptr)
+    if (_currentView == nullptr) {
         return;
+    }
     if (!_currentView->declarations.empty()) {
         messageAssert(_currentView->declarations.size() == 2, "Unexpected view declarations", _currentView, _sem);
         return;
     }
 
-    if (_addedDefaultTimeScale)
+    if (_addedDefaultTimeScale) {
         return;
+    }
 
     _currentSystem->declarations.push_back(
         _factory.constant(_factory.time(), "hif_verilog_timescale_unit", _factory.timeval(1.0, TimeValue::time_ns)));
@@ -892,15 +930,18 @@ void FixDescription_2::_checkViewTimeScale()
 void FixDescription_2::_scaleTimeValue(Value *v)
 {
     // If view == nullptr --> constants into system
-    if (_currentView == nullptr)
+    if (_currentView == nullptr) {
         return;
-    DataDeclaration *pdd = dynamic_cast<DataDeclaration *>(v->getParent());
+    }
+    auto *pdd = dynamic_cast<DataDeclaration *>(v->getParent());
     if (pdd != nullptr) {
         // absolute times
-        if (pdd->getName() == "hif_verilog_timescale_unit")
+        if (pdd->getName() == "hif_verilog_timescale_unit") {
             return;
-        if (pdd->getName() == "hif_verilog_timescale_precision")
+        }
+        if (pdd->getName() == "hif_verilog_timescale_precision") {
             return;
+        }
     }
 
     // skip time values
@@ -912,17 +953,17 @@ void FixDescription_2::_scaleTimeValue(Value *v)
         return;
     }
 
-    Expression *e = new Expression();
+    auto *e = new Expression();
     e->setOperator(op_mult);
     e->setValue2(_factory.identifier("hif_verilog_timescale_unit"));
     v->replace(e);
     e->setValue1(v);
 }
 
-bool FixDescription_2::_checkWrongStatement(Object *root)
+auto FixDescription_2::_checkWrongStatement(Object *root) -> bool
 {
     hif::HifTypedQuery<Wait> q1;
-    q1.collectObjectMethod          = &collectObjectMethod;
+    q1.check_object_method          = &check_object_method;
     q1.sem                          = _sem;
     q1.checkInsideCallsDeclarations = true;
     q1.onlyFirstMatch               = true;

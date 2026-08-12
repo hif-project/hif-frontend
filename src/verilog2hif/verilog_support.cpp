@@ -1,6 +1,7 @@
 /// @file verilog_support.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -41,9 +42,9 @@ const char *PROPERTY_GENVAR             = "PROPERTY_GENVAR";
 // Functions.
 /////////////////////////////////////////////////////////////////
 
-Bitvector *makeVerilogIntegerType()
+auto makeVerilogIntegerType() -> Bitvector *
 {
-    Bitvector *bv = new Bitvector();
+    auto *bv = new Bitvector();
     bv->setSpan(new Range(31, 0));
     bv->setSigned(true);
     bv->setLogic(true);
@@ -53,7 +54,7 @@ Bitvector *makeVerilogIntegerType()
     return bv;
 }
 
-Bit *makeVerilogBitType()
+auto makeVerilogBitType() -> Bit *
 {
     Bit *b = new Bit();
     b->setLogic(true);
@@ -61,9 +62,9 @@ Bit *makeVerilogBitType()
     return b;
 }
 
-Bitvector *makeVerilogRegisterType(Range *range)
+auto makeVerilogRegisterType(Range *range) -> Bitvector *
 {
-    Bitvector *array = new Bitvector();
+    auto *array = new Bitvector();
     array->setSpan(range);
     array->setSigned(false);
     array->setLogic(true);
@@ -71,14 +72,14 @@ Bitvector *makeVerilogRegisterType(Range *range)
     return array;
 }
 
-Bitvector *makeVerilogSignedRegisterType(Range *range)
+auto makeVerilogSignedRegisterType(Range *range) -> Bitvector *
 {
     Bitvector *array = makeVerilogRegisterType(range);
     array->setSigned(true);
     return array;
 }
 
-Value *_concat(BList<Value> &values)
+auto concat(BList<Value> &values) -> Value *
 {
     messageAssert(!values.empty(), "Unexpected empty list values", nullptr, nullptr);
 
@@ -86,7 +87,7 @@ Value *_concat(BList<Value> &values)
     BList<Value>::iterator it = values.begin();
     Value *curr_val           = hif::copy(*it);
     for (++it; it != values.end(); ++it) {
-        Expression *expr = new Expression();
+        auto *expr = new Expression();
         expr->setValue1(curr_val);
         expr->setValue2(hif::copy(*it));
         expr->setOperator(op_concat);
@@ -103,22 +104,23 @@ Value *_concat(BList<Value> &values)
  * @param numbit    number of bits representing the int value
  * @return the bynary representation
  */
-string convertToBinary(string number, int numBits)
+auto convertToBinary(const string &number, int numBits) -> string
 {
     int temp = atoi(number.c_str());
     return convertToBinary(temp, numBits);
 }
 
-string convertToBinary(int number, int numBits)
+auto convertToBinary(int number, int numBits) -> string
 {
-    int count           = 0;
-    string binaryNumber = "";
+    int count = 0;
+    string binaryNumber;
 
     while (count < numBits) {
-        if ((number % 2) == 0)
+        if ((number % 2) == 0) {
             binaryNumber.append("0");
-        else
+        } else {
             binaryNumber.append("1");
+        }
 
         number = number / 2;
         count++;
@@ -128,12 +130,12 @@ string convertToBinary(int number, int numBits)
     return binaryNumber;
 }
 
-void clean_bitvalues(SwitchAlt *c, const bool x)
+void clean_bitvalues(SwitchAlt *c, bool x)
 {
     for (BList<Value>::iterator i = c->conditions.begin(); i != c->conditions.end(); ++i) {
         // Bit:
         if (dynamic_cast<BitValue *>(*i) != nullptr) {
-            BitValue *b = static_cast<BitValue *>(*i);
+            auto *b = dynamic_cast<BitValue *>(*i);
             switch (b->getValue()) {
             case bit_x:
                 b->setValue(x ? bit_dontcare : bit_x);
@@ -154,7 +156,7 @@ void clean_bitvalues(SwitchAlt *c, const bool x)
 
         // Bitvector
         if (dynamic_cast<BitvectorValue *>(*i) != nullptr) {
-            BitvectorValue *b                = static_cast<BitvectorValue *>(*i);
+            auto *b                          = dynamic_cast<BitvectorValue *>(*i);
             std::string v                    = b->getValue();
             const std::string::size_type len = v.size();
             for (std::string::size_type s = 0; s < len; ++s) {
@@ -180,7 +182,7 @@ void clean_bitvalues(SwitchAlt *c, const bool x)
     }
 }
 
-Type *getSemanticType(Range *ro, bool is_signed)
+auto getSemanticType(Range *ro, bool is_signed) -> Type *
 {
     Type *to = nullptr;
 
@@ -189,8 +191,9 @@ Type *getSemanticType(Range *ro, bool is_signed)
         ao->setSigned(is_signed);
         to = ao;
     } else {
-        if (is_signed)
+        if (is_signed) {
             yywarning("Signed directive is ignored on single bits.");
+        }
         Bit *bo = makeVerilogBitType();
         to      = bo;
     }
@@ -205,12 +208,12 @@ Type *getSemanticType(Range *ro, bool is_signed)
 void yyerror(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*errorStream) << " -- ERROR: " << msg << endl;
-    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*errorStream) << " -- ERROR: " << msg << '\n';
+    (*errorStream) << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*errorStream, o, false);
-        *errorStream << std::endl;
+        *errorStream << '\n';
     }
     assert(false);
     exit(1);
@@ -233,28 +236,28 @@ void yyerror(char const *msg, Object *o)
 }
 #endif
 
-void yyerror(VerilogParser *, const char *msg) { yyerror(msg, nullptr); }
+void yyerror(VerilogParser * /*unused*/, const char *msg) { yyerror(msg, nullptr); }
 
 void yywarning(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*errorStream) << " -- WARNING: " << msg << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*errorStream) << " -- WARNING: " << msg << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*errorStream, o, false);
-        *errorStream << std::endl;
+        *errorStream << '\n';
     }
 }
 
 void yydebug(char const *msg, Object *o)
 {
     assert(msg != nullptr);
-    (*debugStream) << " -- DEBUG: " << msg << " At line " << yylineno << ", column " << yycolumno << endl;
+    (*debugStream) << " -- DEBUG: " << msg << " At line " << yylineno << ", column " << yycolumno << '\n';
 
     if (o != nullptr) {
         hif::writeFile(*debugStream, o, false);
-        *debugStream << std::endl;
+        *debugStream << '\n';
     }
 }
 
-void yymessage(const char *msg) { cout << "-- INFO: " << msg << " Line:" << yylineno << endl; }
+void yymessage(const char *msg) { cout << "-- INFO: " << msg << " Line:" << yylineno << '\n'; }

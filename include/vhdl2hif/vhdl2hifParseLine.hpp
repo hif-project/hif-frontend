@@ -1,6 +1,7 @@
 /// @file vhdl2hifParseLine.hpp
 /// @brief Header file for the vhdl2hifParseLine class.
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -13,9 +14,9 @@ class vhdl2hifParseLine : public hif::application_utils::CommandLineParser
 public:
     vhdl2hifParseLine(int argc, char *argv[]);
 
-    virtual ~vhdl2hifParseLine();
+    ~vhdl2hifParseLine() override;
 
-    bool useInt32();
+    auto useInt32() -> bool;
 
 private:
     /// @brief Validates and configures the arguments.
@@ -29,7 +30,7 @@ private:
     /// @return <tt>true</tt> if the input_file is a correct VHDL source file, <tt><false/tt> otherwise.
     //  The correct shape of the VHDL source file is : file_name.vhd or file_name.vhdl.
     ///
-    bool _checkVhdlFile(std::string input_file);
+    static auto _checkVhdlFile(const std::string &input_file) -> bool;
 
     /// @brief Function to check if the source file parameter
     /// is a valid name for PSL source.
@@ -39,7 +40,7 @@ private:
     /// @return <tt>true</tt> if the input_file is a correct PSL source file, <tt><false/tt> otherwise.
     //  The correct shape of the PSL source file is : file_name.psl.
     ///
-    bool _checkPslFile(std::string input_file);
+    static auto _checkPslFile(const std::string &input_file) -> bool;
 
     /// @brief Function to extract the name of the VHDL source file.
     ///
@@ -48,5 +49,5 @@ private:
     /// @return string containing only the name of the file. If <tt>input_string</tt> is a path
     /// (e.g.: ../dir1/dir2/foo.vhd), the function returns the file name (foo.vhd).
     ///
-    std::string _cleanFileName(std::string input_string);
+    static auto _cleanFileName(const std::string &input_string) -> std::string;
 };

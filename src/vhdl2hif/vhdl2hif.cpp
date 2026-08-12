@@ -1,6 +1,7 @@
 /// @file vhdl2hif.cpp
 /// @brief
-/// @copyright (c) 2024 Electronic Systems Design (ESD) Lab @ UniVR
+/// Copyright (c) 2024-2025, Electronic Systems Design (ESD) Group,
+/// Univeristy of Verona.
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
@@ -87,7 +88,7 @@ void performPrintOnlyRefinements(System *systOb);
 // vhdl2hif main function
 /////////////////////////////////////////
 
-int main(int argc, char *argv[])
+auto main(int argc, char *argv[]) -> int
 {
     hif::application_utils::initializeLogHeader("VHDL2HIF", "");
 
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
     // Get command line options and arguments
     vhdl2hifParseLine cLine(argc, argv);
 
-    std::string outputFile("");
+    std::string outputFile;
     vhdl2hifParseLine::Files inputFiles;
     std::ostringstream os;
 
@@ -123,12 +124,12 @@ int main(int argc, char *argv[])
     bool pslMixed = false;
 
     // PARSING SECTION
-    for (vhdl2hifParseLine::Files::iterator it = inputFiles.begin(); it != inputFiles.end(); ++it) {
-        VhdlParser parser(*it);
+    for (auto &inputFile : inputFiles) {
+        VhdlParser parser(inputFile);
 
         if (!parser.parse(cLine.isParseOnly())) {
             string msg("Cannot parse file '");
-            msg = msg.append(*it);
+            msg = msg.append(inputFile);
             msg = msg.append("'");
             messageError(msg, nullptr, nullptr);
         }
@@ -155,10 +156,11 @@ int main(int argc, char *argv[])
         // Print translation warnings
         printUniqueWarnings("During translation, one or more warnings have been raised:");
 
-        hif::writeFile(outputFile.c_str(), systOb, true);
+        hif::writeFile(outputFile, systOb, true);
 
-        if (debugStream != errorStream)
+        if (debugStream != errorStream) {
             delete debugStream;
+        }
 
         hif::application_utils::restoreLogHeader();
         hif::manipulation::flushInstanceCache();
@@ -172,7 +174,7 @@ int main(int argc, char *argv[])
         performPrintOnlyRefinements(systOb);
 
         messageInfo("Performing HIF printing");
-        hif::writeFile(outputFile.c_str(), systOb, true);
+        hif::writeFile(outputFile, systOb, true);
 
         messageInfo("SUCCESS: Operation Complete");
         return 0;
@@ -206,14 +208,14 @@ int main(int argc, char *argv[])
     int ret = hif::semantics::checkHif(systOb, hifLanguage, opt);
 
     if (ret == 0) {
-        hif::writeFile(outputFile.c_str(), systOb, true);
+        hif::writeFile(outputFile, systOb, true);
 
         messageInfo("HIF description written in: " + outputFile);
         messageInfo("HIF translation has been completed.");
     } else {
 #ifndef NDEBUG
-        hif::writeFile(outputFile.c_str(), systOb, true);
-        hif::writeFile(outputFile.c_str(), systOb, false);
+        hif::writeFile(outputFile, systOb, true);
+        hif::writeFile(outputFile, systOb, false);
 
         messageInfo("HIF description written in: " + outputFile);
 #endif
@@ -221,8 +223,9 @@ int main(int argc, char *argv[])
         messageInfo("HIF translation has not been completed.");
     }
 
-    if (debugStream != errorStream)
+    if (debugStream != errorStream) {
         delete debugStream;
+    }
 
     hif::application_utils::restoreLogHeader();
     hif::manipulation::flushInstanceCache();

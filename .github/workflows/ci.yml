@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - name: Checkout hif-frontend
+        uses: actions/checkout@v4
+        with:
+          path: hif-frontend
+
+      - name: Load pinned upstream refs
+        run: grep -v '^#' hif-frontend/.ci/pinned-refs.env | grep -v '^$' >> "$GITHUB_ENV"
+
+      - name: Checkout hif-core (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: esd-univr/hif-core
+          ref: ${{ env.HIF_CORE_REF }}
+          path: hif-core
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.cc }} libpoco-dev flex bison
+
+      - name: Build hif-core
+        run: |
+          cmake -B hif-core/build -S hif-core
+          cmake --build hif-core/build --parallel 2
+
+      - name: Configure hif-frontend
+        run: cmake -B hif-frontend/build -S hif-frontend -DWARNINGS_AS_ERRORS=ON -DSTRICT_WARNINGS=ON
+
+      - name: Build hif-frontend
+        run: cmake --build hif-frontend/build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir hif-frontend/build --output-on-failure
