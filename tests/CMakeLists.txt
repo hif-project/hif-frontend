@@ -67,3 +67,15 @@ add_test(
     COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/multiple_bitselect_assigns
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/multiple_bitselect_assigns.v
 )
+
+# Regression: a $-system-function call ($clog2) used in a port range crashed
+# post-parsing refinement (no declaration registered for it in hif-core's
+# Verilog standard library) and, once that was fixed, crashed again during
+# standardization to HIF semantics (no cross-semantics symbol mapping
+# entry). See fixtures/system_function_call.v. Fixed in hif-core, not here;
+# this fixture exists because the observable regression is here.
+add_test(
+    NAME system_function_call
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/system_function_call
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/system_function_call.v
+)
