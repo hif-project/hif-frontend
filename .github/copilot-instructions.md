@@ -74,7 +74,7 @@ Here is the release process:
 1. Prepare `develop` for Release:
     - Ensure all desired features and bug fixes are merged into `develop`.
     - Update `CHANGELOG.md` with changes for the new version, with the help of the command: `git log --pretty=format:"- (%h) %s" ...`
-    - Update version numbers in relevant project files (e.g., `pyproject.toml`, `package.json`).
+    - Update version numbers in relevant project files (e.g., hif-core's `include/hif/hifVersion.hpp` - the shared version string every tool in this toolchain reports via `--version`).
 2. Make sure we start from a clean state:
     - Make sure you are on the `develop`, and that we start from there.
     - Perform final testing and bug fixing on this branch.
