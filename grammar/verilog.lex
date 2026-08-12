@@ -1367,7 +1367,7 @@ L?\"(\\.|[^\"])*\"                      {
     ++yylineno;
     yycolumno += static_cast<int>(strlen(yytext));
 
-    yylval.text = yytext;
+    yylval.text = hif::application_utils::hif_strdup(yytext);
 
 #ifdef LEXER_VERBOSE_MODE
     (*debugStream) << "IDENTIFIER: " << yytext << std::endl;
