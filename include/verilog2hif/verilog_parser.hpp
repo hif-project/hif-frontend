@@ -556,6 +556,21 @@ public:
     static auto parse_ModuleOrGenerateItem(std::list<module_instance_and_net_ams_decl_identifier_assignment_t *>
                                                *module_instantiation) -> module_or_generate_item_t *;
 
+    /* -----------------------------------------------------------------------
+     *  GATE PRIMITIVE INSTATIATION
+     * -----------------------------------------------------------------------
+     */
+    static auto parse_GateTerminalInstance(hif::Identifier *name, hif::Value *output, hif::BList<hif::Value> *inputs)
+        -> gate_terminal_instance_t *;
+
+    static auto parse_GateTerminalInstanceMultiOutput(
+        hif::Identifier *name,
+        hif::BList<hif::Value> *outputs,
+        hif::Value *input) -> gate_terminal_instance_t *;
+
+    auto parse_GateInstantiation(gate_primitive_kind_t kind, std::list<gate_terminal_instance_t *> *instances)
+        -> hif::BList<hif::Assign> *;
+
     static auto parse_NatureBinding(char *identifier, bool isPotential) -> hif::Variable *;
     void parse_DisciplineDeclaration(char *identifier, hif::BList<hif::Variable> *discipline_item_list);
 
