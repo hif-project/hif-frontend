@@ -3457,6 +3457,146 @@ auto VerilogParser::parse_ModuleOrGenerateItem(std::list<module_instance_and_net
     return ret;
 }
 
+auto VerilogParser::parse_GateTerminalInstance(Identifier *name, Value *output, BList<Value> *inputs)
+    -> gate_terminal_instance_t *
+{
+    auto *ret    = new gate_terminal_instance_t();
+    ret->name    = name;
+    ret->outputs = new BList<Value>();
+    ret->outputs->push_back(output);
+    ret->inputs = inputs;
+
+    return ret;
+}
+
+auto VerilogParser::parse_GateTerminalInstanceMultiOutput(Identifier *name, BList<Value> *outputs, Value *input)
+    -> gate_terminal_instance_t *
+{
+    auto *ret    = new gate_terminal_instance_t();
+    ret->name    = name;
+    ret->outputs = outputs;
+    ret->inputs  = new BList<Value>();
+    ret->inputs->push_back(input);
+
+    return ret;
+}
+
+auto VerilogParser::parse_GateInstantiation(
+    gate_primitive_kind_t kind,
+    std::list<gate_terminal_instance_t *> *instances) -> BList<Assign> *
+{
+    // Basic Verilog gate primitives (and/nand/or/nor/xor/xnor/buf/not) have
+    // no HIF library counterpart to instantiate against (unlike ordinary
+    // module instantiation, which binds an Instance to a ViewReference
+    // resolved later against a user-declared DesignUnit). We therefore lower
+    // each gate instance directly into its equivalent combinational
+    // behavior, exactly as if it had been written as a continuous
+    // "assign output = <expr>(inputs);" statement. This reuses the
+    // module_or_generate_item_t::continuous_assign merge path unchanged
+    // (see parse_ModuleDeclaration), so gate primitives simply become part
+    // of the module's concurrent actions.
+    Operator reduceOp;
+    bool isReducing;
+    bool negateResult;
+    switch (kind) {
+    case GATE_PRIMITIVE_AND:
+        reduceOp     = op_band;
+        isReducing   = true;
+        negateResult = false;
+        break;
+    case GATE_PRIMITIVE_NAND:
+        reduceOp     = op_band;
+        isReducing   = true;
+        negateResult = true;
+        break;
+    case GATE_PRIMITIVE_OR:
+        reduceOp     = op_bor;
+        isReducing   = true;
+        negateResult = false;
+        break;
+    case GATE_PRIMITIVE_NOR:
+        reduceOp     = op_bor;
+        isReducing   = true;
+        negateResult = true;
+        break;
+    case GATE_PRIMITIVE_XOR:
+        reduceOp     = op_bxor;
+        isReducing   = true;
+        negateResult = false;
+        break;
+    case GATE_PRIMITIVE_XNOR:
+        reduceOp     = op_bxor;
+        isReducing   = true;
+        negateResult = true;
+        break;
+    case GATE_PRIMITIVE_BUF:
+        reduceOp     = op_none;
+        isReducing   = false;
+        negateResult = false;
+        break;
+    case GATE_PRIMITIVE_NOT:
+        reduceOp     = op_none;
+        isReducing   = false;
+        negateResult = true;
+        break;
+    default:
+        messageDebugAssert(false, "Unexpected gate primitive kind", nullptr, _sem);
+        reduceOp     = op_none;
+        isReducing   = false;
+        negateResult = false;
+        break;
+    }
+
+    auto *ret = new BList<Assign>();
+
+    for (auto *inst : *instances) {
+        messageAssert(
+            inst->inputs != nullptr && !inst->inputs->empty(), "Gate instance without input terminal(s)", nullptr,
+            _sem);
+        messageAssert(
+            inst->outputs != nullptr && !inst->outputs->empty(), "Gate instance without output terminal(s)", nullptr,
+            _sem);
+
+        // Take ownership of the first input terminal, then fold in any
+        // remaining ones (n-input gates only; n-output gates always have
+        // exactly one input terminal by construction, so the loop below
+        // never runs for them).
+        BList<Value>::iterator iit = inst->inputs->begin();
+        Value *driver              = *iit;
+        iit                        = iit.remove();
+        while (isReducing && iit != inst->inputs->end()) {
+            Value *rhs = *iit;
+            iit        = iit.remove();
+            driver     = parse_ExpressionBinaryOperator(driver, reduceOp, rhs);
+        }
+        if (negateResult) {
+            driver = parse_ExpressionUnaryOperator(op_bnot, driver);
+        }
+
+        // Drive every output terminal with the same expression (copied for
+        // all but the first, since HIF subtrees cannot be shared).
+        bool first = true;
+        for (BList<Value>::iterator oit = inst->outputs->begin(); oit != inst->outputs->end();) {
+            Value *outLValue = *oit;
+            oit              = oit.remove();
+
+            Assign *assign_o = parse_Assignment(outLValue, first ? driver : hif::copy(driver));
+            ret->push_back(assign_o);
+
+            first = false;
+        }
+
+        delete inst->outputs;
+        delete inst->inputs;
+        delete inst->name;
+        delete inst;
+    }
+
+    delete instances;
+
+    return ret;
+}
+
 auto VerilogParser::parse_NatureBinding(char *identifier, bool isPotential) -> Variable *
 {
     auto *vr = new ViewReference();

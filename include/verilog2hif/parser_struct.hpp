@@ -34,6 +34,7 @@ struct analog_filter_function_arg_t;
 struct specify_item_t;
 struct specify_terminal_descriptor_t;
 struct timing_check_event_control_t;
+struct gate_terminal_instance_t;
 
 /// @brief Data about a identifier.
 struct identifier_data_t {
@@ -78,6 +79,33 @@ struct module_or_generate_item_declaration_t {
     hif::Procedure *task_declaration;                   ///< Task declaration.
     hif::Function *function_declaration;                ///< Function declaration.
     hif::BList<hif::Generate> *generate_declaration;    ///< List of generate declarations.
+};
+
+/// @brief Kind of basic Verilog gate primitive supported by gate_instantiation
+/// (IEEE 1364 n_input_gatetype / n_output_gatetype). Only the eight basic
+/// primitives are supported; switch-level, enable and pass primitives remain
+/// unsupported and are rejected by the grammar as before.
+enum gate_primitive_kind_t {
+    GATE_PRIMITIVE_AND,
+    GATE_PRIMITIVE_NAND,
+    GATE_PRIMITIVE_OR,
+    GATE_PRIMITIVE_NOR,
+    GATE_PRIMITIVE_XOR,
+    GATE_PRIMITIVE_XNOR,
+    GATE_PRIMITIVE_BUF,
+    GATE_PRIMITIVE_NOT
+};
+
+/// @brief Data about a single instance within a gate_instantiation statement
+/// (e.g. "n1_gate (n1, a, b)" inside "nand n1_gate (n1, a, b), ...;").
+/// Purely a parser-side intermediate structure: it does not yet know the
+/// gate operator (shared by the whole statement), so it just carries the
+/// instance name (if any) and its output/input terminals, later combined
+/// with the gate kind in VerilogParser::parse_GateInstantiation().
+struct gate_terminal_instance_t {
+    hif::Identifier *name;           ///< Optional instance name (nullptr for unnamed instances).
+    hif::BList<hif::Value> *outputs; ///< Output terminal(s) (lvalues). Exactly 1 for n-input gates.
+    hif::BList<hif::Value> *inputs;  ///< Input terminal(s) (expressions). Exactly 1 for n-output gates.
 };
 
 /// @brief Data about a module or generate item.

@@ -92,6 +92,8 @@ VerilogParser * parserInstance = nullptr;
     module_or_generate_item_t *                                module_or_generate_item_struct;
     non_port_module_item_t *                                   non_port_module_item_struct;
     module_or_generate_item_declaration_t *                    module_or_generate_item_declaration_struct;
+    gate_primitive_kind_t                                      gate_primitive_kind;
+    gate_terminal_instance_t *                                 gate_terminal_instance_struct;
     task_item_declaration_t *                                  task_item_declaration_struct;
     block_item_declaration_t *                                 block_item_declaration_struct;
     function_item_declaration_t *                              function_item_declaration_struct;
@@ -215,6 +217,7 @@ VerilogParser * parserInstance = nullptr;
     std::list<module_instance_and_net_ams_decl_identifier_assignment_t*> * module_instance_and_net_ams_decl_identifier_assignment_list;
     std::list<specify_item_t*> *                                           specify_item_struct_list;
     std::list<module_or_generate_item_t*> *                                module_or_generate_list;
+    std::list<gate_terminal_instance_t*> *                                 gate_terminal_instance_struct_list;
 }
 
 
@@ -524,6 +527,15 @@ K_Sremoval
 
 %type   <assign_list>                                   list_of_net_assignments
 %type   <assign_list>                                   continuous_assign
+%type   <assign_list>                                   gate_instantiation
+
+%type   <gate_primitive_kind>                           n_input_gatetype
+%type   <gate_primitive_kind>                           n_output_gatetype
+%type   <gate_terminal_instance_struct>                 n_input_gate_instance
+%type   <gate_terminal_instance_struct>                 n_output_gate_instance
+%type   <gate_terminal_instance_struct_list>             n_input_gate_instance_list
+%type   <gate_terminal_instance_struct_list>             n_output_gate_instance_list
+%type   <value_list>                                    output_terminal_list
 
 %type   <assign_object>                                 assignment
 %type   <assign_object>                                 blocking_assignment
@@ -1147,7 +1159,9 @@ attribute_instance_list module_or_generate_item_declaration
 | attribute_instance_list gate_instantiation
 {
     yydebug("module_or_generate_item: attribute_instance_list gate_instantiation.");
-    yyerror("module_or_generate_item: attribute_instance_list gate_instantiation is not supported.");
+    RULE_BREAK_MACRO
+    $$ = new module_or_generate_item_t();
+    $$->continuous_assign = $2;
 }
 //| attribute_instance_list udp_instantiation
 //{
@@ -4278,7 +4292,7 @@ cmos_switchtype delay3_opt cmos_switch_instance_list K_SEMICOLON
 | n_input_gatetype n_input_gate_instance_list K_SEMICOLON
 {
     yydebug("gate_instantiation: n_input_gatetype n_input_gate_instance_list K_SEMICOLON.");
-    yyerror("gate_instantiation: n_input_gatetype n_input_gate_instance_list K_SEMICOLON is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateInstantiation( $1, $2 );
 }
 | n_input_gatetype drive_strength n_input_gate_instance_list K_SEMICOLON
 {
@@ -4297,8 +4311,8 @@ cmos_switchtype delay3_opt cmos_switch_instance_list K_SEMICOLON
 }
 | n_output_gatetype n_output_gate_instance_list K_SEMICOLON
 {
-    yydebug("gate_instantiation: n_output_gatetype drive_strength delay2 n_output_gate_instance_list K_SEMICOLON.");
-    yyerror("gate_instantiation: n_output_gatetype drive_strength delay2 n_output_gate_instance_list K_SEMICOLON is not supported.");
+    yydebug("gate_instantiation: n_output_gatetype n_output_gate_instance_list K_SEMICOLON.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateInstantiation( $1, $2 );
 }
 | n_output_gatetype drive_strength n_output_gate_instance_list K_SEMICOLON
 {
@@ -4406,15 +4420,13 @@ K_LPAREN /* output_terminal */ lvalue K_COMMA /* input_terminal_list */ comma_ex
 {
     yydebug("n_input_gate_instance: K_LPAREN /* output_terminal */ lvalue K_COMMA /* "
             "input_terminal_list */ comma_expression_list K_RPAREN.");
-    yyerror("n_input_gate_instance: K_LPAREN /* output_terminal */ lvalue K_COMMA /* "
-            "input_terminal_list */ comma_expression_list K_RPAREN is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateTerminalInstance( nullptr, $2, $4 );
 }
-| name_of_gate_instance K_LPAREN /* output_terminal */ lvalue K_COMMA /* input_terminal_list */ comma_expression_list K_RPAREN
+| name_of_instance K_LPAREN /* output_terminal */ lvalue K_COMMA /* input_terminal_list */ comma_expression_list K_RPAREN
 {
-    yydebug("n_input_gate_instance: name_of_gate_instance K_LPAREN /* output_terminal */ lvalue K_COMMA /* "
+    yydebug("n_input_gate_instance: name_of_instance K_LPAREN /* output_terminal */ lvalue K_COMMA /* "
             "input_terminal_list */ comma_expression_list K_RPAREN");
-    yyerror("n_input_gate_instance: name_of_gate_instance K_LPAREN /* output_terminal */ lvalue K_COMMA /* "
-            "input_terminal_list */ comma_expression_list K_RPAREN is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateTerminalInstance( $1, $3, $5 );
 };
 
 
@@ -4423,15 +4435,13 @@ K_LPAREN output_terminal_list K_COMMA /* input_terminal */ expression K_RPAREN
 {
     yydebug("n_output_gate_instance: K_LPAREN output_terminal_list K_COMMA "
             "/* input_terminal */ expression K_RPAREN.");
-    yyerror("n_output_gate_instance: K_LPAREN output_terminal_list K_COMMA "
-            "/* input_terminal */ expression K_RPAREN is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateTerminalInstanceMultiOutput( nullptr, $2, $4 );
 }
-| name_of_gate_instance K_LPAREN output_terminal_list K_COMMA /* input_terminal */ expression K_RPAREN
+| name_of_instance K_LPAREN output_terminal_list K_COMMA /* input_terminal */ expression K_RPAREN
 {
-    yydebug("n_output_gate_instance: name_of_gate_instance K_LPAREN output_terminal_list K_COMMA "
+    yydebug("n_output_gate_instance: name_of_instance K_LPAREN output_terminal_list K_COMMA "
             "/* input_terminal */ expression K_RPAREN.");
-    yyerror("n_output_gate_instance: name_of_gate_instance K_LPAREN output_terminal_list K_COMMA "
-            "/* input_terminal */ expression K_RPAREN is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_GateTerminalInstanceMultiOutput( $1, $3, $5 );
 };
 
 
@@ -4513,12 +4523,16 @@ output_terminal_list:
 /* output_terminal */ lvalue
 {
     yydebug("output_terminal_list: /* output_terminal */ lvalue.");
-    yyerror("output_terminal_list: /* output_terminal */ lvalue is not supported.");
+    RULE_BREAK_MACRO
+    $$ = new BList<Value>();
+    $$->push_back( $1 );
 }
 | output_terminal_list K_COMMA /* output_terminal */ lvalue
 {
     yydebug("output_terminal_list: output_terminal_list K_COMMA /* output_terminal */ lvalue.");
-    yyerror("output_terminal_list: output_terminal_list K_COMMA /* output_terminal */ lvalue is not supported.");
+    RULE_BREAK_MACRO
+    $$ = $1;
+    $$->push_back( $3 );
 };
 
                                                      
@@ -4563,12 +4577,16 @@ n_input_gate_instance_list:
 n_input_gate_instance
 {
     yydebug("n_input_gate_instance_list: n_input_gate_instance.");
-    yyerror("n_input_gate_instance_list: n_input_gate_instance is not supported.");
+    RULE_BREAK_MACRO
+    $$ = new std::list<gate_terminal_instance_t*>();
+    $$->push_back( $1 );
 }
 | n_input_gate_instance_list K_COMMA n_input_gate_instance
 {
     yydebug("n_input_gate_instance_list: n_input_gate_instance_list K_COMMA n_input_gate_instance.");
-    yyerror("n_input_gate_instance_list: n_input_gate_instance_list K_COMMA n_input_gate_instance is not supported.");
+    RULE_BREAK_MACRO
+    $$ = $1;
+    $$->push_back( $3 );
 };
 
 
@@ -4576,12 +4594,16 @@ n_output_gate_instance_list:
 n_output_gate_instance
 {
     yydebug("n_output_gate_instance_list: n_output_gate_instance.");
-    yyerror("n_output_gate_instance_list: n_output_gate_instance is not supported.");
+    RULE_BREAK_MACRO
+    $$ = new std::list<gate_terminal_instance_t*>();
+    $$->push_back( $1 );
 }
 | n_output_gate_instance_list K_COMMA n_output_gate_instance
 {
     yydebug("n_output_gate_instance_list: n_output_gate_instance_list K_COMMA n_output_gate_instance.");
-    yyerror("n_output_gate_instance_list: n_output_gate_instance_list K_COMMA n_output_gate_instance is not supported.");
+    RULE_BREAK_MACRO
+    $$ = $1;
+    $$->push_back( $3 );
 };
 
 
@@ -4704,16 +4726,48 @@ K_nmos
 | K_rpmos;
 
 n_input_gatetype:
-K_and 
-| K_nand 
-| K_or 
-| K_nor 
-| K_xor 
-| K_xnor;
+K_and
+{
+    yydebug("n_input_gatetype: K_and.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_AND;
+}
+| K_nand
+{
+    yydebug("n_input_gatetype: K_nand.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_NAND;
+}
+| K_or
+{
+    yydebug("n_input_gatetype: K_or.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_OR;
+}
+| K_nor
+{
+    yydebug("n_input_gatetype: K_nor.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_NOR;
+}
+| K_xor
+{
+    yydebug("n_input_gatetype: K_xor.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_XOR;
+}
+| K_xnor
+{
+    yydebug("n_input_gatetype: K_xnor.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_XNOR;
+};
 
 n_output_gatetype:
-K_buf 
-| K_not;
+K_buf
+{
+    yydebug("n_output_gatetype: K_buf.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_BUF;
+}
+| K_not
+{
+    yydebug("n_output_gatetype: K_not.");
+    RULE_BREAK_MACRO $$ = GATE_PRIMITIVE_NOT;
+};
 
 
 pass_en_switchtype:
