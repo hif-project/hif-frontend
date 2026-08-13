@@ -2,11 +2,8 @@
 
 **hif-frontend** provides `verilog2hif` and `vhdl2hif` — Flex/Bison-based parsers that translate Verilog and VHDL source into the HDL-Independent Format (HIF), the shared intermediate representation used across this toolchain.
 
-Part of the HIF toolchain for HDL-independent-format compilation:
-- [hif-core](https://github.com/hif-project/hif-core) — shared AST/IR library
-- **hif-frontend** (this repo) — Verilog/VHDL → HIF
-- [hif-backend](https://github.com/hif-project/hif-backend) — HIF → Verilog/VHDL(/SystemC)
-- [hif-muffin](https://github.com/hif-project/hif-muffin) — RTL fault injection, built on the above
+Part of the HIF project. See https://github.com/hif-project for the
+complete list of repositories and tools.
 
 ![CI](https://github.com/hif-project/hif-frontend/actions/workflows/ci.yml/badge.svg?branch=develop)
 
