@@ -33,7 +33,7 @@ jobs:
       - name: Checkout hif-core (pinned)
         uses: actions/checkout@v4
         with:
-          repository: esd-univr/hif-core
+          repository: hif-project/hif-core
           ref: ${{ env.HIF_CORE_REF }}
           path: hif-core
 
