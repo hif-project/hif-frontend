@@ -41,3 +41,41 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/escaped_identifier.v
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/multi_file_clean.v
 )
+
+# Regression: the ~& (reduction-NAND) operator is not supported - the grammar
+# has a stub production (K_NAND ... primary) that unconditionally calls
+# yyerror. See fixtures/reduction_nand.v.
+add_test(
+    NAME reduction_nand
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/reduction_nand
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/reduction_nand.v
+)
+
+# Regression: two continuous assigns to different bit-selects of the same
+# signal crash post-parsing refinement step 3 - this is the exact
+# textbook case splitLogicConesLoops's own doc comment describes handling
+# ("a[0] = expr1; a[1] = expr2; --> ..."), so this function has apparently
+# never worked for its own worked example. Root cause: it calls
+# hif::getTerminalPrefix() with default options, which (despite the
+# header's doc-comment claiming recurseIntoMembers/recurseIntoSlices
+# default to true) actually default to false since the struct has no
+# member initializers - so it returns the Member/Slice node itself
+# instead of the underlying Identifier, and getDeclaration() on that
+# non-symbol object asserts. See fixtures/multiple_bitselect_assigns.v.
+add_test(
+    NAME multiple_bitselect_assigns
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/multiple_bitselect_assigns
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/multiple_bitselect_assigns.v
+)
+
+# Regression: a $-system-function call ($clog2) used in a port range crashed
+# post-parsing refinement (no declaration registered for it in hif-core's
+# Verilog standard library) and, once that was fixed, crashed again during
+# standardization to HIF semantics (no cross-semantics symbol mapping
+# entry). See fixtures/system_function_call.v. Fixed in hif-core, not here;
+# this fixture exists because the observable regression is here.
+add_test(
+    NAME system_function_call
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/system_function_call
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/system_function_call.v
+)

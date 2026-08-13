@@ -8330,7 +8330,7 @@ primary
 | K_NAND attribute_instance_list primary %prec UNARY_PREC
 {
     yydebug("expression: K_NAND attribute_instance_list primary.");
-    yyerror("expression: K_NAND attribute_instance_list primary is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_ExpressionNandOperator( $3 );
 }
 | K_NOR attribute_instance_list primary %prec UNARY_PREC
 {

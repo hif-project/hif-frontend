@@ -1178,6 +1178,24 @@ auto VerilogParser::parse_ExpressionNorOperator(Value *primary) -> Value *
     return exprNot;
 }
 
+auto VerilogParser::parse_ExpressionNandOperator(Value *primary) -> Value *
+{
+    if (primary == nullptr) {
+        return nullptr;
+    }
+
+    auto *exprAnd = new Expression();
+    auto *exprNot = new Expression();
+
+    exprAnd->setValue1(primary);
+    exprAnd->setOperator(op_andrd);
+
+    exprNot->setValue1(exprAnd);
+    exprNot->setOperator(op_bnot);
+
+    return exprNot;
+}
+
 auto VerilogParser::parse_ExpressionTernaryOperator(Value *expression1, Value *expression2, Value *expression3)
     -> Value *
 {
