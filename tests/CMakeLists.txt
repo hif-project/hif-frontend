@@ -79,3 +79,22 @@ add_test(
     COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/system_function_call
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/system_function_call.v
 )
+
+# Regression (hif-frontend#14): verilog2hif aborted with "Declaration not
+# found" on a user-defined function called from a continuous assignment to an
+# output port - the assignment was folded onto the Entity, where the function,
+# a Contents declaration, could not be resolved. A plain `localparam` failed
+# identically, so the defect was never about functions.
+#
+# Driven by a script rather than being a bare exit-0 run: a fold that quietly
+# dropped the assignment would also exit 0, so the translation has to be
+# checked for being right, not merely for happening.
+add_test(
+    NAME user_function_continuous_assign
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFUNCTION_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/user_function_continuous_assign.v
+        -DLOCALPARAM_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/localparam_continuous_assign.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/user_function_continuous_assign_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/user_function_continuous_assign_test.cmake
+)
