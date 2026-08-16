@@ -973,6 +973,16 @@ void FixDescription_1::_fixProcessesWithWait(hif::StateTable *o)
         return;
     }
     auto *w = new hif::Wait();
+
+    // Say what this node is. It is not a statement the source wrote: it records
+    // that the process loops back round and reapplies its static sensitivity,
+    // which is what the SystemC lowering emits at the tail of its
+    // `while (true)`. Every field is null, which makes it identical to the node
+    // vhdl2hif produces for `wait;` - and that means the opposite, suspend
+    // permanently. A backend reading the tree had no way to tell them apart and
+    // necessarily got one of the two wrong (hif-backend#46).
+    w->addProperty(PROPERTY_PROCESS_LOOP_TAIL);
+
     o->states.front()->actions.push_back(w);
 }
 
