@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-16
+
+- Fixed `verilog2hif` aborting with hif-core's "Declaration not found" on a continuous assignment to an output port whose right-hand side refers to a declaration in the module body — so the design could not be translated at all. An assignment with a constant-looking right-hand side was folded into the target's declaration, and for an output port that declaration lives on the `Entity`, which cannot see `Contents` declarations; the reference was left with nothing to resolve to. Folding is now restricted to values that stay resolvable where they are moved. Reported for a user-defined `function` (#14), but a plain `localparam` failed identically — it was never about functions. Literals, module parameters and system functions were always reachable from the `Entity` and still fold as before. (#14)
+
 ## [1.1.0] - 2026-08-13
 
 - Implemented the `~&` (reduction-NAND) operator.

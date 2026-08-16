@@ -68,6 +68,16 @@ private:
 
     auto _isConstantExpr(hif::Value *v) -> bool;
 
+    /// @brief Whether @p v can be folded into the declaration of the net a
+    /// global action assigns to.
+    /// @details Constant is necessary but not sufficient. The value is being
+    /// *moved*, and the declaration of an output port lives on the Entity,
+    /// which cannot see anything declared in the Contents - so a constant that
+    /// refers to a Contents declaration would be stranded there.
+    /// @param v The right-hand side being considered.
+    /// @return True if folding it is safe.
+    auto _isFoldableIntoDeclaration(hif::Value *v) -> bool;
+
     void _fixAllSignalsSesitivity(hif::StateTable *o);
     static void _fixProcessesWithWait(hif::StateTable *o);
 
@@ -316,7 +326,7 @@ auto FixDescription_1::visitGlobalAction(hif::GlobalAction &o) -> int
         auto *a = dynamic_cast<hif::Assign *>(*itr);
         messageAssert(a != nullptr, "Unexpected case", &o, _sem);
 
-        if (!_isConstantExpr(a->getRightHandSide())) {
+        if (!_isFoldableIntoDeclaration(a->getRightHandSide())) {
             ++itr;
             continue;
         }
@@ -837,6 +847,52 @@ auto FixDescription_1::_isConstantExpr(hif::Value *v) -> bool
         messageAssert(decl != nullptr, "hif::Declaration not found", *i, _sem);
         if (dynamic_cast<hif::Signal *>(decl) != nullptr || dynamic_cast<hif::Port *>(decl) != nullptr ||
             dynamic_cast<hif::Variable *>(decl) != nullptr) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+auto FixDescription_1::_isFoldableIntoDeclaration(hif::Value *v) -> bool
+{
+    if (!_isConstantExpr(v)) {
+        return false;
+    }
+    if (v == nullptr) {
+        return true;
+    }
+
+    // Constant is not enough, because the value is being *moved*. Folding an
+    // assignment to an output port puts its right-hand side on the Entity,
+    // which cannot see anything declared in the Contents - so a constant that
+    // refers to a Contents declaration is stranded there: the symbol stays in
+    // the tree with nothing to resolve to, and the whole-system
+    // getAllReferences at the start of performStep2Refinements then aborts
+    // with "Declaration not found", so the design cannot be translated at all
+    // (hif-frontend#14).
+    //
+    // Reached by a call to a user-defined function, whose Function is a
+    // Contents declaration, and equally by a plain `localparam`, whose Const
+    // is one too. Both were the same defect. What still folds is what was
+    // always reachable from the Entity: literals, module parameters (View
+    // template parameters) and system functions (a LibraryDef under the
+    // System).
+    //
+    // Not folding is never a loss of information - the assignment simply stays
+    // the global action it already was, which is where a non-constant one
+    // stays too.
+    std::list<hif::Object *> list;
+    hif::semantics::collectSymbols(list, v, _sem);
+    for (auto *symbol : list) {
+        auto *instance = dynamic_cast<hif::Instance *>(symbol);
+        if (instance != nullptr && dynamic_cast<hif::Library *>(instance->getReferencedType()) != nullptr) {
+            continue;
+        }
+
+        hif::Declaration *decl = hif::semantics::getDeclaration(symbol, _sem);
+        messageAssert(decl != nullptr, "hif::Declaration not found", symbol, _sem);
+        if (hif::getNearestParent<hif::Contents>(decl) != nullptr) {
             return false;
         }
     }
