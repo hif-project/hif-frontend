@@ -115,3 +115,20 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/clog2_replication_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/clog2_replication_test.cmake
 )
+
+# Regression: verilog2hif aborted on the SystemVerilog `logic` type, which was
+# mistaken for the Verilog-AMS `logic` discipline and renamed to an `ams_logic`
+# typedef that a plain Verilog input never declares.
+#
+# Driven by a script rather than being a bare exit-0 run: `logic` and `reg`
+# spell the same four-state variable, so the fix has to make them agree on the
+# uninitialised value too ('X', not 'Z'), and it must not disturb the AMS
+# reading of the same identifier.
+add_test(
+    NAME sv_logic_type
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sv_logic_type_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_type_test.cmake
+)
