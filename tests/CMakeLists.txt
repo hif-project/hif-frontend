@@ -98,3 +98,20 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/user_function_continuous_assign_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/user_function_continuous_assign_test.cmake
 )
+
+# Regression (hif-frontend#15): verilog2hif aborted on a replication whose
+# repeat count is a $clog2 call, e.g. `{$clog2(DEPTH){1'b1}}`. Fixed in
+# hif-core, not here; this fixture exists because the observable regression is
+# here.
+#
+# Driven by a script rather than being a bare exit-0 run: the point of this
+# path is that a *symbolic* replication count survives, and a fix that folded
+# the count away would also exit 0.
+add_test(
+    NAME clog2_replication
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/clog2_replication_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/clog2_replication_test.cmake
+)
