@@ -132,3 +132,22 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sv_logic_type_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_type_test.cmake
 )
+
+# Regression: verilog2hif accepted a replication whose repeat count is not a
+# constant expression (`{$random{1'b1}}`) and re-emitted it verbatim, so the
+# toolchain round-tripped a design no simulator will elaborate. A second illegal
+# spelling (`{$time{1'b1}}`) reached hif-core and aborted there instead.
+#
+# Driven by a script rather than being an expect-failure run: the check must
+# reject with a diagnostic that names the offending count and leaves no
+# artifact, and it must not touch the legal symbolic counts - parameter,
+# localparam, user constant function, genvar - which is the half a bare
+# exit-nonzero assertion would miss.
+add_test(
+    NAME nonconst_replication_count
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/nonconst_replication_count_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/nonconst_replication_count_test.cmake
+)
