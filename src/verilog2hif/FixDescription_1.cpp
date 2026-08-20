@@ -808,6 +808,48 @@ auto FixDescription_1::_fixAMSDisciplines(hif::TypeReference *tr) -> bool
     // Logic discipline is mapped as TypeDef since it has descrete domain.
     if (trName == "logic") {
         tr->setName("ams_logic");
+        hif::semantics::resetDeclarations(tr);
+        if (hif::semantics::getDeclaration(tr, _sem) != nullptr) {
+            return true;
+        }
+
+        // Reaching this point means "ams_logic" does not resolve either, i.e.
+        // the Verilog-AMS disciplines library is not part of this description.
+        // The name therefore is not the AMS discipline but the SystemVerilog
+        // four-state type, which every RTL source uses in place of "reg".
+        //
+        // Renaming unconditionally used to leave a TypeReference with no
+        // declaration behind, and the first pass that needed its base type
+        // aborted the tool (referencesUtils.cpp / getBaseType.cpp).
+        //
+        // "logic" is a resolved four-state bit, which is exactly what the AMS
+        // typedef expands to as well - factory.bit(true, true, false) in
+        // VerilogSemantics - so both readings agree on the underlying type and
+        // the substitution is safe in either world. A "logic [N:0]" declaration
+        // arrives here as an Array of this Bit and visitArray folds it into a
+        // Bitvector, the same shape "reg [N:0]" produces.
+        auto *bit = new hif::Bit();
+        bit->setLogic(true);
+        bit->setResolved(true);
+        bit->setConstexpr(false);
+
+        // "logic" is not a lexer keyword: it arrives here as an identifier, so
+        // the declaration was parsed as an AMS discipline *net* and carries net
+        // semantics. A SystemVerilog "logic" is a variable, like "reg", and the
+        // two differ in their uninitialised value - a net defaults to 'Z', a
+        // variable to 'X'. Without this the same design written with "logic"
+        // instead of "reg" silently starts from a different state.
+        //
+        // visitSignal/visitPort read IS_VARIABLE_TYPE *after* descending into
+        // the type, so marking the declaration here is seen by the pass that
+        // installs the default value.
+        auto *decl = hif::getNearestParent<hif::DataDeclaration>(tr);
+        if (decl != nullptr && hif::isSubNode(tr, decl->getType()) && !decl->checkProperty(IS_VARIABLE_TYPE)) {
+            decl->addProperty(IS_VARIABLE_TYPE);
+        }
+
+        tr->replace(bit);
+        delete tr;
         return true;
     }
 
