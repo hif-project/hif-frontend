@@ -94,6 +94,10 @@ private:
     template <typename T> void _fixSystemTaskCalls(T *call);
     auto _fixiteratedConcat(hif::FunctionCall *o, bool aggressive) -> bool;
 
+    /// @brief Rejects a replication whose repeat count is not a constant
+    /// expression. Diagnoses and exits; never returns on an invalid count.
+    void _checkReplicationCount(hif::FunctionCall *o);
+
     auto _fixLocalParam(hif::Identifier *o) -> bool;
     auto _fixImplicitDeclaredNets(hif::Identifier *o) -> bool;
 
@@ -1300,6 +1304,73 @@ void FixDescription_1::_fixMissingPortDir(hif::Port *o, const hif::semantics::Re
     }
 }
 
+void FixDescription_1::_checkReplicationCount(hif::FunctionCall *o)
+{
+    auto *times = dynamic_cast<hif::ValueTPAssign *>(o->templateParameterAssigns.front());
+    if (times == nullptr) {
+        return;
+    }
+    hif::Value *count = times->getValue();
+    if (count == nullptr || dynamic_cast<hif::ConstValue *>(count) != nullptr) {
+        // Already folded to a literal by the caller's simplify: constant by
+        // construction, and the caller checks it is positive.
+        return;
+    }
+
+    // IEEE Std 1364-2005, 5.1.14: "the first expression in a replication
+    // operation shall be a non-zero, non-X and non-Z constant expression".
+    // A count that survives simplification is symbolic, which is legal only if
+    // every symbol in it is itself constant - a parameter, a localparam or a
+    // genvar. Left unchecked, an illegal count is not merely accepted: it is
+    // re-emitted verbatim, so the toolchain round-trips a design no simulator
+    // will elaborate (#20).
+    std::list<hif::Object *> symbols;
+    hif::semantics::collectSymbols(symbols, count, _sem);
+    for (auto *symbol : symbols) {
+        auto *call = dynamic_cast<hif::FunctionCall *>(symbol);
+        if (call != nullptr && call->getName().find("_system_") == 0 && call->getName() != "_system_clog2") {
+            // $clog2 is the one system function IEEE Std 1364-2005 (17.11)
+            // defines as usable in a constant expression. The others report
+            // simulation state - $random, $time, $realtime - so a count built
+            // from one of them cannot be statically determined. Matching on
+            // the name is what identifies them: _fixSystemTaskCalls has
+            // already rewritten `$random` to `_system_random`, and the
+            // children of this call were visited before it.
+            messageError(
+                "Replication count is not a constant expression: it calls the system function '" +
+                    std::string(call->getName()) + "', whose value is not known statically.",
+                symbol, _sem);
+        }
+
+        auto *instance = dynamic_cast<hif::Instance *>(symbol);
+        if (instance != nullptr && dynamic_cast<hif::Library *>(instance->getReferencedType()) != nullptr) {
+            // The `standard` library instance a system call carries; it names
+            // no value of its own.
+            continue;
+        }
+
+        hif::Declaration *decl = hif::semantics::getDeclaration(symbol, _sem);
+        if (decl == nullptr) {
+            // Not this check's business. An unresolved symbol is reported, with
+            // its own diagnostic, by the passes that need its declaration.
+            continue;
+        }
+        if (decl->checkProperty(PROPERTY_GENVAR)) {
+            // A genvar is a hif::Variable at this point, but IEEE Std
+            // 1364-2005, 12.1.3.2 makes it constant within its generate loop:
+            // `{g{1'b1}}` is legal and must keep translating.
+            continue;
+        }
+        if (dynamic_cast<hif::Signal *>(decl) != nullptr || dynamic_cast<hif::Port *>(decl) != nullptr ||
+            dynamic_cast<hif::Variable *>(decl) != nullptr) {
+            messageError(
+                "Replication count is not a constant expression: it reads '" + std::string(decl->getName()) +
+                    "', which is a signal, a port or a variable.",
+                symbol, _sem);
+        }
+    }
+}
+
 auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, bool aggressive) -> bool
 {
     if (o->getName() != "iterated_concat") {
@@ -1312,6 +1383,11 @@ auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, bool aggressive)
     }
 
     hif::manipulation::simplify(o, _sem, opt);
+
+    // After simplification, so that a count which folds to a literal is never
+    // reported. Before the asserts below, which would otherwise turn an
+    // illegal input into an internal error rather than a diagnostic.
+    _checkReplicationCount(o);
 
     auto *cv1 = dynamic_cast<hif::ConstValue *>(
         dynamic_cast<hif::ValueTPAssign *>(o->templateParameterAssigns.front())->getValue());
