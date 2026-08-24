@@ -423,7 +423,31 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
 
             // 1
             auto *sig = new Signal();
-            hif::manipulation::addDeclarationInContext(sig, decl, false);
+            // The split signal normally belongs beside the declaration whose
+            // assignment is being split. A `for generate` is the exception, and
+            // specifically a ForGenerate rather than a generate in general
+            // (hif-frontend#23):
+            //
+            //  - the assignment may read the genvar, whose declaration lives in
+            //    the ForGenerate. generateConeFunctions later copies that
+            //    assignment into a procedure declared beside this signal, so a
+            //    signal at module scope puts the copy out of the genvar's
+            //    scope and standardization aborts on the unresolvable
+            //    reference;
+            //  - one signal outside the loop would be shared by every
+            //    iteration, so all iterations would drive the same net.
+            //
+            // Neither applies to an IfGenerate: it has no index and is not
+            // replicated, so its split signals stay where they have always
+            // been. Moving them would be a behaviour change with no defect
+            // behind it - and the declaration would land somewhere hif2verilog
+            // renders incorrectly, which is hif-backend#78.
+            auto *forGenerate = hif::getNearestParent<ForGenerate>(token);
+            if (forGenerate != nullptr) {
+                forGenerate->declarations.push_back(sig);
+            } else {
+                hif::manipulation::addDeclarationInContext(sig, decl, false);
+            }
             sig->setName(tokenName);
             Type *tokenType = hif::semantics::getSemanticType(token, sem);
             messageAssert(tokenType != nullptr, "Cannot type token", token, sem);

@@ -172,3 +172,33 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_argument_directions_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/task_argument_directions_test.cmake
 )
+
+# Regression (hif-frontend#23): verilog2hif aborted on a continuous assignment
+# inside a `for generate` reading the genvar. splitLogicConesLoops declared the
+# split signal beside its target - module scope - and generateConeFunctions then
+# copied the assignment into a procedure there, out of the genvar's scope.
+#
+# Driven by a script rather than being a bare exit-0 run: what makes the
+# reference resolve is *where* the split declaration lands, and a change that
+# silenced the abort while putting it back at module scope would also
+# reintroduce the silent half - one signal shared by every iteration of the
+# unrolled loop.
+add_test(
+    NAME genvar_continuous_assign
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_continuous_assign_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_continuous_assign_test.cmake
+)
+
+# The forms of `generate` that already worked, kept as a separate test so that
+# breaking one of them fails under its own name rather than widening the fix
+# above. Covers the two the fix must not touch - an if generate, and a
+# continuous assign inside a for generate that does not read the genvar - plus
+# the procedural and instance forms from the issue's acceptance matrix.
+add_test(
+    NAME genvar_generate_controls
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/genvar_generate_controls
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign_controls.v
+)
