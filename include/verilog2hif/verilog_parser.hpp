@@ -392,6 +392,20 @@ public:
         std::list<task_item_declaration_t *> *task_item_declaration_list,
         statement_t *statement_or_null) -> hif::Procedure *;
 
+    /// @brief ANSI-style task header: the arguments are declared in a
+    /// parenthesised list rather than as items in the body.
+    ///
+    /// Distinct from the overload above only in where the arguments come from
+    /// - the body's declarations arrive separately here, because the grammar
+    /// has already split them - so the two agree on everything a task is
+    /// (hif-frontend#25).
+    auto parse_TaskDeclaration(
+        bool isAutomatic,
+        char *identifier,
+        hif::BList<hif::Port> *task_port_list,
+        std::list<block_item_declaration_t *> *block_item_declaration_list,
+        statement_t *statement_or_null) -> hif::Procedure *;
+
     //    hif::Procedure * parse_TaskDeclaration( hif::Identifier * identifier,
     //            hif::BList<hif::Port> * task_port_list,
     //            hif::BList<block_item_declaration_t> * block_item_declaration_list,

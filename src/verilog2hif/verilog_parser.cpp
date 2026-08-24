@@ -2354,6 +2354,92 @@ auto VerilogParser::parse_TaskDeclaration(
     return proc;
 }
 
+auto VerilogParser::parse_TaskDeclaration(
+    bool isAutomatic,
+    char *identifier,
+    BList<Port> *task_port_list,
+    list<block_item_declaration_t *> *block_item_declaration_list,
+    statement_t *statement_or_null) -> Procedure *
+{
+    auto *proc        = new Procedure();
+    auto *state_table = new StateTable();
+    auto *state       = new State();
+
+    setCodeInfo(proc);
+    setCodeInfo(state_table);
+    setCodeInfo(state);
+
+    // The arguments. Same Port-to-Parameter transfer as the non-ANSI overload
+    // performs on each task_item_declaration: only where the ports come from
+    // differs between the two forms, never what they mean.
+    for (BList<Port>::iterator it(task_port_list->begin()); it != task_port_list->end();) {
+        Port *port_o = *it;
+        it           = it.remove();
+
+        auto *param_o = new Parameter();
+        setCodeInfo(param_o);
+
+        param_o->setSourceLineNumber(port_o->getSourceLineNumber());
+        param_o->setSourceFileName(port_o->getSourceFileName());
+
+        param_o->setName(port_o->getName());
+        param_o->setType(hif::copy(port_o->getType()));
+        param_o->setDirection(port_o->getDirection());
+        Value *init_val = port_o->getValue();
+        if (init_val != nullptr) {
+            param_o->setValue(hif::copy(init_val));
+        }
+
+        proc->parameters.push_back(param_o);
+        delete port_o;
+    }
+    delete task_port_list;
+
+    // The body's own declarations. In the non-ANSI form these arrive
+    // interleaved with the arguments inside task_item_declaration; here the
+    // grammar has already separated them, so they are their own list.
+    for (auto *block_decl : *block_item_declaration_list) {
+        if (block_decl->local_parameter_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->local_parameter_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->local_parameter_declaration;
+        } else if (block_decl->integer_variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->integer_variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->integer_variable_declaration;
+        } else if (block_decl->reg_variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->reg_variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->reg_variable_declaration;
+        } else if (block_decl->variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->variable_declaration;
+        } else {
+            messageDebugAssert(false, "Unexpected case", nullptr, _sem);
+        }
+
+        delete block_decl;
+    }
+    delete block_item_declaration_list;
+
+    _buildActionList(statement_or_null, state->actions);
+    state->setName(NameTable::getInstance()->registerName("task_state"));
+
+    state_table->setName(identifier);
+    state_table->states.push_back(state);
+
+    proc->setName(identifier);
+    proc->setStateTable(state_table);
+
+    if (!isAutomatic) {
+        proc->addProperty(PROPERTY_TASK_NOT_AUTOMATIC);
+    }
+
+    free(identifier);
+    return proc;
+}
+
 auto VerilogParser::parse_BlockVariableType(char *identifier, BList<Range> *dimension_list) -> Signal *
 {
     auto *ret = new Signal();

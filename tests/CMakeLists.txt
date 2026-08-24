@@ -151,3 +151,24 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/nonconst_replication_count_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/nonconst_replication_count_test.cmake
 )
+
+# Regression (hif-frontend#25): verilog2hif refused a task's `inout` argument
+# and every ANSI-style task header. Two bare-yyerror holes in the same grammar
+# area - tf_inout_declaration_identifiers, and the whole task_port_item /
+# task_port_list family together with the singular tf_output_declaration and
+# tf_inout_declaration it needs.
+#
+# Driven by a script rather than being a bare exit-0 run: filling in a
+# production by copying its twin is exactly the operation that gets a direction
+# wrong, and a task parsed as `output` where the source said `inout` would exit
+# 0 here and only surface in a backend. The script counts the directions and
+# names the two spellings easiest to leave behind - `inout integer n;` and the
+# `task t(output p, q);` shorthand.
+add_test(
+    NAME task_argument_directions
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/task_argument_directions.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_argument_directions_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/task_argument_directions_test.cmake
+)

@@ -547,6 +547,8 @@ K_Sremoval
 %type   <port_object>                                   port_declaration
 %type   <port_object>                                   port_reference
 %type   <port_object>                                   tf_input_declaration
+%type   <port_object>                                   tf_output_declaration
+%type   <port_object>                                   tf_inout_declaration
 
 %type   <port_list>                                     list_of_port_declarations_or_null
 %type   <port_list>                                     list_of_port_declarations
@@ -559,7 +561,8 @@ K_Sremoval
 %type   <port_list>                                     tf_input_declaration_identifiers
 %type   <port_list>                                     tf_output_declaration_identifiers
 %type   <port_list>                                     tf_inout_declaration_identifiers
-%type   <port_list>                                     task_port_item task_port_list
+%type   <port_object>                                   task_port_item
+%type   <port_list>                                     task_port_list
 %type   <port_list>                                     function_port_list
 
 %type   <portassign_list>                               named_port_connection_list
@@ -3865,9 +3868,8 @@ K_task K_automatic_opt /* task_identifier */ IDENTIFIER K_SEMICOLON task_item_de
 {
     yydebug("task_declaration: K_task K_automatic_opt /* task_identifier */ IDENTIFIER "
             "K_LPAREN task_port_list K_RPAREN K_SEMICOLON block_item_declaration_list statement_or_null K_endtask.");
-    yyerror("task_declaration: K_task K_automatic_opt /* task_identifier */ IDENTIFIER "
-            "K_LPAREN task_port_list K_RPAREN K_SEMICOLON block_item_declaration_list statement_or_null K_endtask is not supported.");
-    //$$ = parserInstance->parse_TaskDeclaration( $3, $5, $8, $9 );
+    RULE_BREAK_MACRO
+    $$ = parserInstance->parse_TaskDeclaration( $2, $3, $5, $8, $9 );
 };
 
 
@@ -3921,17 +3923,29 @@ task_port_list:
 task_port_item
 {
     yydebug("task_port_list: task_port_item.");
-    yyerror("task_port_list: task_port_item is not supported.");
+    RULE_BREAK_MACRO
+    $$ = new BList<Port>();
+    $$->push_back($1);
 }
 | task_port_list K_COMMA IDENTIFIER
 {
     yydebug("task_port_list: task_port_list K_COMMA IDENTIFIER.");
-    yyerror("task_port_list: task_port_list K_COMMA IDENTIFIER is not supported.");
+    RULE_BREAK_MACRO
+    $$ = $1;
+    messageAssert($1->size() > 0, "Unexpected empty task port list", nullptr, nullptr);
+    // `task t(input a, b);` - a bare identifier continues the previous item's
+    // direction and type, so the port is that item copied under a new name.
+    Port * port_o = hif::copy($1->back());
+    port_o->setName($3);
+    free($3);
+    $$->push_back(port_o);
 }
 | task_port_list K_COMMA task_port_item
 {
     yydebug("task_port_list: task_port_list K_COMMA task_port_item.");
-    yyerror("task_port_list: task_port_list K_COMMA task_port_item is not supported.");
+    RULE_BREAK_MACRO
+    $$ = $1;
+    $$->push_back($3);
 };
 
 
@@ -3939,17 +3953,17 @@ task_port_item:
 attribute_instance_list tf_input_declaration
 {
     yydebug("task_port_item: attribute_instance_list tf_input_declaration.");
-    yyerror("task_port_item: attribute_instance_list tf_input_declaration is not supported.");
+    RULE_BREAK_MACRO $$ = $2;
 }
 | attribute_instance_list tf_output_declaration
 {
     yydebug("task_port_item: attribute_instance_list tf_output_declaration.");
-    yyerror("task_port_item: attribute_instance_list tf_output_declaration is not supported.");
+    RULE_BREAK_MACRO $$ = $2;
 }
 | attribute_instance_list tf_inout_declaration
 {
     yydebug("task_port_item: attribute_instance_list tf_inout_declaration.");
-    yyerror("task_port_item: attribute_instance_list tf_inout_declaration is not supported.");
+    RULE_BREAK_MACRO $$ = $2;
 };
 
 
@@ -4009,9 +4023,11 @@ K_output K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIF
 {
     yydebug("tf_output_declaration: K_output K_reg_opt K_signed_opt range_opt "
             "/* list_of_port_identifiers */ IDENTIFIER.");
-    yyerror("tf_output_declaration: K_output K_reg_opt K_signed_opt range_opt "
-            "/* list_of_port_identifiers */ IDENTIFIER is not supported.");
-    //$$ = parserInstance->parse_TfDeclaration( hif::dir_out, $4, $5 );
+
+    RULE_BREAK_MACRO
+    $$ = parserInstance->parse_TfDeclaration(
+             hif::dir_out, $3, $4, new Identifier($5), nullptr );
+    free($5);
 }
 // ** VERILOG_AMS **
 //| K_output /* discipline_identifier */ identifier_opt K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIFIER
@@ -4023,7 +4039,11 @@ K_output K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIF
 | K_output task_port_type /* list_of_port_identifiers */ IDENTIFIER
 {
     yydebug("tf_output_declaration: K_output task_port_type /* list_of_port_identifiers */ IDENTIFIER.");
-    yyerror("tf_output_declaration: K_output task_port_type /* list_of_port_identifiers */ IDENTIFIER is not supported.");
+
+    RULE_BREAK_MACRO
+    $$ = parserInstance->parse_TfDeclaration(
+             hif::dir_out, false, nullptr, new Identifier($3), $2 );
+    free($3);
 };
 
 
@@ -4053,9 +4073,11 @@ K_inout K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIFI
 {
     yydebug("tf_inout_declaration: K_inout K_reg_opt K_signed_opt range_opt "
             "/* list_of_port_identifiers */ IDENTIFIER.");
-    yyerror("tf_inout_declaration: K_inout K_reg_opt K_signed_opt range_opt "
-            "/* list_of_port_identifiers */ IDENTIFIER is not supported.");
-    //$$ = parserInstance->parse_TfDeclaration( hif::dir_inout, $4, $5 );
+
+    RULE_BREAK_MACRO
+    $$ = parserInstance->parse_TfDeclaration(
+             hif::dir_inout, $3, $4, new Identifier($5), nullptr );
+    free($5);
 }
 // ** VERILOG_AMS **
 //| K_inout /* discipline_identifier */ identifier_opt K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIFIER
@@ -4067,7 +4089,11 @@ K_inout K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ IDENTIFI
 | K_inout task_port_type /* list_of_port_identifiers */ IDENTIFIER
 {
     yydebug("tf_inout_declaration: K_inout task_port_type /* list_of_port_identifiers */ IDENTIFIER.");
-    yyerror("tf_inout_declaration: K_inout task_port_type /* list_of_port_identifiers */ IDENTIFIER is not supported.");
+
+    RULE_BREAK_MACRO
+    $$ = parserInstance->parse_TfDeclaration(
+             hif::dir_inout, false, nullptr, new Identifier($3), $2 );
+    free($3);
 };
 
 
@@ -4076,9 +4102,7 @@ K_inout K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ list_of_
 {
     yydebug("tf_inout_declaration_identifiers: K_inout K_reg_opt K_signed_opt range_opt "
             "/* list_of_port_identifiers */ list_of_identifiers.");
-    yyerror("tf_inout_declaration_identifiers: K_inout K_reg_opt K_signed_opt range_opt "
-            "/* list_of_port_identifiers */ list_of_identifiers is not supported.");
-    //$$ = parserInstance->parse_TfDeclaration( hif::dir_inout, $4, $5 );
+    RULE_BREAK_MACRO $$ = parserInstance->parse_TfDeclaration( hif::dir_inout, $3, $4, $5, nullptr );
 }
 // ** VERILOG_AMS **
 //| K_inout /* discipline_identifier */ identifier_opt K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ list_of_identifiers
@@ -4090,7 +4114,7 @@ K_inout K_reg_opt K_signed_opt range_opt /* list_of_port_identifiers */ list_of_
 | K_inout task_port_type /* list_of_port_identifiers */ list_of_identifiers
 {
     yydebug("tf_inout_declaration_identifiers: K_inout task_port_type /* list_of_port_identifiers */ list_of_identifiers.");
-    yyerror("tf_inout_declaration_identifiers: K_inout task_port_type /* list_of_port_identifiers */ list_of_identifiers is not supported.");
+    RULE_BREAK_MACRO $$ = parserInstance->parse_TfDeclaration( hif::dir_inout, false, nullptr, $3, $2 );
 };
 
 
