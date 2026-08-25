@@ -1953,10 +1953,21 @@ K_aliasparam /* parameter_identifier */ IDENTIFIER K_EQ /* parameter_identifier 
 
 discipline_and_modifiers:
 // ** VERILOG_AMS ** -->
+// A bare identifier here is a type name the lexer does not know. Two things are
+// spelled that way and only the whole description can tell them apart: a
+// Verilog-AMS discipline, and a SystemVerilog type such as `logic`, which is not
+// a lexer keyword either. Refusing at parse time made `input logic [3:0] d`
+// unreachable even though the same type in a body declaration is supported
+// (hif-frontend#21, #33), so the four alternatives that are just an identifier -
+// optionally signed, optionally ranged - now record the name and let
+// parse_PortType and FixDescription's _fixAMSDisciplines decide what it is.
+//
+// The combinations below that pair an identifier with an AMS net type or with
+// K_wreal are genuinely Verilog-AMS and keep refusing: nothing downstream reads
+// them, so accepting them would produce a port with a silently wrong type.
 IDENTIFIER
 {
     yydebug("discipline_and_modifiers: IDENTIFIER");
-    yyerror("discipline_and_modifiers: IDENTIFIER is not supported");
     RULE_BREAK_MACRO
     $$ = new discipline_and_modifiers_t();
     $$->discipline_identifier = parserInstance->parse_Identifier( $1 );
@@ -2044,7 +2055,6 @@ IDENTIFIER
 | IDENTIFIER K_signed
 {
     yydebug("discipline_and_modifiers: IDENTIFIER K_signed");
-    yyerror("discipline_and_modifiers: IDENTIFIER K_signed is not supported");
     RULE_BREAK_MACRO
     $$ = new discipline_and_modifiers_t();
     $$->discipline_identifier = parserInstance->parse_Identifier( $1 );
@@ -2053,7 +2063,6 @@ IDENTIFIER
 | IDENTIFIER K_signed range
 {
     yydebug("discipline_and_modifiers: IDENTIFIER K_signed range");
-    yyerror("discipline_and_modifiers: IDENTIFIER K_signed range is not supported");
     RULE_BREAK_MACRO
     $$ = new discipline_and_modifiers_t();
     $$->discipline_identifier = parserInstance->parse_Identifier( $1 );
@@ -2063,7 +2072,6 @@ IDENTIFIER
 | IDENTIFIER range
 {
     yydebug("discipline_and_modifiers: IDENTIFIER range");
-    yyerror("discipline_and_modifiers: IDENTIFIER range is not supported");
     RULE_BREAK_MACRO
     $$ = new discipline_and_modifiers_t();
     $$->discipline_identifier = parserInstance->parse_Identifier( $1 );
