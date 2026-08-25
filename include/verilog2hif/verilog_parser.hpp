@@ -93,6 +93,20 @@ public:
      *  PORT_DECLARATIONS
      * -----------------------------------------------------------------------
      */
+
+    /// @brief Builds the type of an ANSI-style port header.
+    /// @details When the header names a type the lexer does not know - a
+    /// Verilog-AMS discipline, or a SystemVerilog type such as `logic`, which
+    /// is not a lexer keyword either - the name is recorded as a TypeReference
+    /// and the decision of what it means is left to FixDescription's
+    /// _fixAMSDisciplines. That is where a *body* declaration written the same
+    /// way already ends up (hif-frontend#21), so both spellings of the same
+    /// type converge on one place. Otherwise this is getSemanticType.
+    /// @param discipline_and_modifiers The parsed header. Not consumed; the
+    /// range is copied, and the caller keeps its existing ownership handling.
+    /// @return The port's type.
+    auto parse_PortType(const discipline_and_modifiers_t *discipline_and_modifiers) -> hif::Type *;
+
     auto parse_InoutDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier)
         -> hif::Port *;
 

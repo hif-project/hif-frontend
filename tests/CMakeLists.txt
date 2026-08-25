@@ -133,6 +133,20 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_type_test.cmake
 )
 
+# Regression: the same type in an ANSI-style port header, which the AMS
+# discipline rule refused at parse time even after sv_logic_type made the body
+# declaration work. Driven by a script for the same reason: each fixture is
+# compared against an already-supported twin that means the same thing, so a
+# header that parses but produces a different type or default value fails.
+add_test(
+    NAME sv_logic_ansi_port
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sv_logic_ansi_port_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_ansi_port_test.cmake
+)
+
 # Regression: verilog2hif accepted a replication whose repeat count is not a
 # constant expression (`{$random{1'b1}}`) and re-emitted it verbatim, so the
 # toolchain round-tripped a design no simulator will elaborate. A second illegal
