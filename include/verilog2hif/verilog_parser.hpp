@@ -572,10 +572,14 @@ public:
         std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
         -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
+    /// @param isSigned true when the declaration carried `signed`, as in
+    ///        `logic signed [3:0] s;`. Only meaningful on the net-declaration
+    ///        reading of this rule; a module instantiation cannot be signed.
     auto parse_ModuleInstantiation(
         char *identifier,
         hif::Range *range_opt,
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
+        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list,
+        bool isSigned = false)
         -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
     auto parse_ParameterValueAssignment(list_of_parameter_assignment_t *list_of_parameter_assignment)

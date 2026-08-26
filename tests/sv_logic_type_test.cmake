@@ -78,7 +78,36 @@ if(NOT logic_content STREQUAL reg_content)
         "${WORK_DIR}/reg_normalised.xml for diffing.")
 endif()
 
-# 3. Guard the Verilog-AMS reading: there `logic` *is* a discipline and must
+# 3. The same equivalence with `signed` on the declaration, which was a bare
+#    `syntax error` until hif-frontend#34. Separate fixtures rather than adding
+#    the declarations to the pair above, so that a regression names which of the
+#    two properties broke - `logic` at all, or `logic` carrying `signed`.
+#
+#    The pair covers both widths on purpose. The vector carries its signedness
+#    on the Array that FixDescription_1 folds into a Bitvector; the scalar has
+#    no Array, and has to come out as an unsigned Bit exactly as `reg signed s;`
+#    does. Parity with `reg` is the requirement, not signedness in the abstract.
+translate(sv_logic_signed ${FIXTURE_DIR}/sv_logic_signed.v logic_signed_content)
+translate(sv_logic_signed_reg_twin ${FIXTURE_DIR}/sv_logic_signed_reg_twin.v reg_signed_content)
+
+if(NOT logic_signed_content STREQUAL reg_signed_content)
+    file(WRITE ${WORK_DIR}/logic_signed_normalised.xml "${logic_signed_content}")
+    file(WRITE ${WORK_DIR}/reg_signed_normalised.xml "${reg_signed_content}")
+    message(FATAL_ERROR
+        "`logic signed` and `reg signed` did not produce the same HIF (hif-frontend#34).\n"
+        "Normalised outputs written to ${WORK_DIR}/logic_signed_normalised.xml and "
+        "${WORK_DIR}/reg_signed_normalised.xml for diffing.")
+endif()
+
+# The vector must actually be signed. Without this the comparison above would
+# still pass if both spellings lost the qualifier together.
+if(NOT logic_signed_content MATCHES "<BITVECTOR[^>]*signed=\"true\"")
+    message(FATAL_ERROR
+        "`logic signed [3:0]` produced no signed BITVECTOR, so both spellings agree on the wrong "
+        "type (hif-frontend#34).\nContent:\n${logic_signed_content}")
+endif()
+
+# 4. Guard the Verilog-AMS reading: there `logic` *is* a discipline and must
 #    still resolve to the ams_logic typedef, i.e. the fallback must not fire.
 translate(sv_logic_ams_discipline ${FIXTURE_DIR}/sv_logic_ams_discipline.vams ams_content)
 

@@ -3512,8 +3512,8 @@ auto VerilogParser::parse_ModuleInstantiation(
 auto VerilogParser::parse_ModuleInstantiation(
     char *identifier,
     Range *range_opt,
-    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
-    -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *
+    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list,
+    bool isSigned) -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *
 {
     std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *inst_l =
         this->parse_ModuleInstantiation(identifier, module_instance_list);
@@ -3529,6 +3529,11 @@ auto VerilogParser::parse_ModuleInstantiation(
         for (BList<Signal>::iterator j = ams_created_variables->begin(); j != ams_created_variables->end(); ++j) {
             auto *type = new Array();
             type->setSpan(hif::copy(range_opt));
+            // FixDescription_1::visitArray folds an array of bits into a
+            // Bitvector and carries this flag onto it, which is how
+            // `logic signed [3:0] s;` ends up with the same signed Bitvector
+            // that `reg signed [3:0] s;` produces (hif-frontend#34).
+            type->setSigned(isSigned);
             type->setType((*j)->setType(nullptr));
             (*j)->setType(type);
         }
