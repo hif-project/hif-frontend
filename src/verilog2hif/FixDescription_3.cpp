@@ -1878,6 +1878,26 @@ void partialFlattening(
     hif::semantics::GetReferencesOptions opt;
     opt.include_unreferenced = true;
 
+    // The loop above has no natural bound: it stops when collectOnAssigns stops
+    // asking for work, and nothing guarantees that ever happens.
+    //
+    // It does not for a design unit that was instantiated in the source and is
+    // no longer instantiated after elaboration - the losing branch of an
+    // `if generate`, say. collectOnAssigns still collects its view, because it
+    // still drives an output port with a continuous assignment, so
+    // needsFlattening stays true; but there is no instance left to flatten, so
+    // performPartialFlattening changes nothing and the next round collects
+    // exactly the same set. Measured on such a design: identical
+    // `views={leaf, top}, viewRefs={}` from the second iteration onwards, flat
+    // memory, 430 iterations a second, forever.
+    //
+    // Repeating a round that changed nothing cannot make progress, so stopping
+    // is not a heuristic cut-off. The work left undone is flattening a design
+    // unit nothing instantiates, which is what should be left undone.
+    Views previousViews;
+    ViewRefs previousViewRefs;
+    bool hasPreviousRound = false;
+
     for (;;) {
         // Filling info map.
         InfoMap infoMap;
@@ -1892,6 +1912,13 @@ void partialFlattening(
         if (!needsFlattening) {
             break;
         }
+        if (hasPreviousRound && views == previousViews && viewRefs == previousViewRefs) {
+            break;
+        }
+        previousViews    = views;
+        previousViewRefs = viewRefs;
+        hasPreviousRound = true;
+
         performPartialFlattening(system, views, viewRefs, sem);
 
         // Resetting infos

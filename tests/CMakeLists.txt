@@ -264,3 +264,37 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/cone_writeback_code_info_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cone_writeback_code_info_test.cmake
 )
+
+# Regression (hif-frontend#32): an `if generate` with an else branch aborted in
+# hif-core's simplify, because a reduction over a constant was not folded and
+# the else condition therefore never reached a ConstValue. Fixed in hif-core;
+# kept fixed from this side, where it is observable.
+#
+# Asserts which branch survived, not just exit 0: selecting the wrong branch of
+# a static if generate is silent.
+add_test(
+    NAME if_generate_instance
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/if_generate_instance.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/if_generate_instance_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/if_generate_instance_test.cmake
+)
+
+# Regression (hif-frontend#32): the same construct with the instance in the
+# branch that loses. partialFlattening's loop then never terminated, because
+# collectOnAssigns kept asking for a view no instance referenced any more.
+#
+# TIMEOUT is part of the regression rather than housekeeping: the failure mode
+# is a stable oscillation - flat memory, no progress, no end - so without a
+# deadline a regression would wedge the suite instead of failing it. The fixture
+# translates in well under a second.
+add_test(
+    NAME if_generate_dead_branch_instance
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/if_generate_dead_branch_instance.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/if_generate_dead_branch_instance_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/if_generate_dead_branch_instance_test.cmake
+)
+set_tests_properties(if_generate_dead_branch_instance PROPERTIES TIMEOUT 60)
