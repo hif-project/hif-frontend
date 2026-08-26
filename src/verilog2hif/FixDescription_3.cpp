@@ -682,6 +682,8 @@ struct InfoStruct {
     RefSet lhsBlockingUsing;
     // Ref is read (in condition or RHS of procedural assigns or param of method call)
     RefSet readUsing;
+    // Ref is an actual bound to an out/inout formal, so the call writes it
+    RefSet lhsCallUsing;
 
     bool wasLhsContinuous{false};
 
@@ -698,6 +700,7 @@ InfoStruct::InfoStruct()
     , lhsNonBlockingUsing()
     , lhsBlockingUsing()
     , readUsing()
+    , lhsCallUsing()
 
 {
     // ntd
@@ -718,6 +721,7 @@ InfoStruct::InfoStruct(const InfoStruct &other)
     , lhsNonBlockingUsing(other.lhsNonBlockingUsing)
     , lhsBlockingUsing(other.lhsBlockingUsing)
     , readUsing(other.readUsing)
+    , lhsCallUsing(other.lhsCallUsing)
     , wasLhsContinuous(other.wasLhsContinuous)
 {
     // ntd
@@ -738,6 +742,7 @@ auto InfoStruct::operator=(const InfoStruct &other) -> InfoStruct &
     lhsNonBlockingUsing = other.lhsNonBlockingUsing;
     lhsBlockingUsing    = other.lhsBlockingUsing;
     readUsing           = other.readUsing;
+    lhsCallUsing        = other.lhsCallUsing;
     wasLhsContinuous    = other.wasLhsContinuous;
 
     return *this;
@@ -765,6 +770,11 @@ auto InfoStruct::isOnlyInContinuousAssignments() const -> bool
     if (!readUsing.empty()) {
         return false;
     }
+    // These used to be counted in readUsing, and this check kept the answer the
+    // same when they moved out of it.
+    if (!lhsCallUsing.empty()) {
+        return false;
+    }
 
     return true;
 }
@@ -787,7 +797,41 @@ void calculateRequiredDeclType(
     isVariable = !infos.lhsContinuousUsing.empty() || !infos.lhsBlockingUsing.empty() || infos.wasLhsContinuous;
 }
 
-void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
+/// @brief The formal a symbol's enclosing actual is bound to, when that formal
+///        is written by the call.
+///
+/// An actual bound to an `out` or `inout` formal is a write, not a read. The
+/// direction is the authoritative signal and is what this consults: on the
+/// trees these frontends build only a task call can have such a formal, since
+/// neither a Verilog nor a VHDL function declares one, but keying on the
+/// direction rather than on the call's class says the rule rather than its
+/// current consequence.
+///
+/// @param symb The symbol to classify.
+/// @param sem The reference semantics.
+/// @return The formal Parameter, or nullptr when the symbol is not written by a
+///         call.
+auto getWritingCallFormal(Object *symb, hif::semantics::ILanguageSemantics *sem) -> Parameter *
+{
+    auto *actual = hif::getNearestParent<ParameterAssign>(symb);
+    if (actual == nullptr) {
+        return nullptr;
+    }
+
+    Parameter *formal = hif::semantics::getDeclaration(actual, sem);
+    if (formal == nullptr) {
+        return nullptr;
+    }
+
+    const PortDirection direction = formal->getDirection();
+    if (direction != dir_out && direction != dir_inout) {
+        return nullptr;
+    }
+
+    return formal;
+}
+
+void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty, hif::semantics::ILanguageSemantics *sem)
 {
     for (auto &i : refMap) {
         auto *decl = dynamic_cast<DataDeclaration *>(i.first);
@@ -815,6 +859,13 @@ void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
                 wait != nullptr &&
                 (hif::objectIsInSensitivityList(symb, opts) || hif::isSubNode(symb, wait->getCondition()))) {
                 infoMap[decl].waitUsing.insert(symb);
+            } else if (getWritingCallFormal(symb, sem) != nullptr) {
+                // A task's out/inout argument. This is a write, and used to
+                // fall through to readUsing below because the classification
+                // never consulted the formal's direction - so refineToVariables
+                // renamed the reference to the shadow variable and inserted no
+                // write-back, and the signal stopped updating (hif-frontend#31).
+                infoMap[decl].lhsCallUsing.insert(symb);
             } else if (ass != nullptr) {
                 bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
                 bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
@@ -1114,7 +1165,7 @@ void generateConeFunctions(
         hif::semantics::getAllReferences(procRefs, sem, p);
 
         // updating infos
-        fillInfoMap(procRefs, infoMap, true);
+        fillInfoMap(procRefs, infoMap, true, sem);
 
         // updating refs
         for (auto &procRef : procRefs) {
@@ -1502,6 +1553,48 @@ void refineToVariables(
                     continue;
                 }
                 BList<Assign>::iterator jt(ass);
+                jt.insert_after(sigAss);
+            }
+
+            for (auto *ref : infos.lhsCallUsing) {
+                // A task writes the signal through an out/inout argument:
+                //   setnext(sig)  -->
+                //   setnext(var);
+                //   sig <= var;
+                //
+                // The rename alone is what the reference used to get, because
+                // the classification counted it as a read. That publishes
+                // nothing: the shadow is updated by the call and the signal
+                // never is, so every reader freezes at whatever the last direct
+                // assignment left (hif-frontend#31).
+                auto *call = hif::getNearestParent<ProcedureCall>(ref);
+                messageAssert(call != nullptr, "Parent call not found", ref, sem);
+
+                auto *actual = hif::getNearestParent<ParameterAssign>(ref);
+                messageAssert(actual != nullptr, "Parent actual not found", ref, sem);
+
+                Procedure *parentCone = getParentCone(ref, conesMap);
+                if (parentCone != nullptr) {
+                    // Inside cone: skip, as the assignment loop above does.
+                    continue;
+                }
+
+                // The target has to name the signal and the source the shadow,
+                // so the two copies are taken on either side of the rename -
+                // the same order the assignment loop above relies on. Copying
+                // the whole actual rather than the reference keeps a partial
+                // write like `t(sig[3:0])` writing back only its own bits.
+                Value *target = hif::copy(actual->getValue());
+
+                hif::objectSetName(ref, varName);
+                hif::semantics::setDeclaration(ref, var);
+
+                auto *sigAss = new Assign();
+                sigAss->setCodeInfo(call->getCodeInfo());
+                sigAss->setLeftHandSide(target);
+                sigAss->setRightHandSide(hif::copy(actual->getValue()));
+
+                BList<Action>::iterator jt(call);
                 jt.insert_after(sigAss);
             }
 
@@ -1901,7 +1994,7 @@ void partialFlattening(
     for (;;) {
         // Filling info map.
         InfoMap infoMap;
-        fillInfoMap(refMap, infoMap, false);
+        fillInfoMap(refMap, infoMap, false, sem);
 
         // Collecting output ports targets of blocking/continuous assignments
         collectOnAssigns(infoMap, sem, views, viewRefs);
@@ -2018,7 +2111,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // Filling info map
     // ///////////////////////////////////////////////////////////////////
     InfoMap infoMap;
-    fillInfoMap(refMap, infoMap, true);
+    fillInfoMap(refMap, infoMap, true, sem);
 
     // ///////////////////////////////////////////////////////////////////
     // Fix logic cones
