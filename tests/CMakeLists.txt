@@ -224,9 +224,11 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_cone_reader_test.cmake
 )
 
-# Control for hif-frontend#30: a loop whose index does not advance by one must be
-# left unexpanded, because expansion substitutes the iteration ordinal for the
-# genvar and would silently change which bits the design drives (hif-core#24).
+# Regression (hif-frontend#30, strided form): a loop whose index advances by more
+# than one, driving a net read from outside it, must be expanded over the values
+# the genvar actually takes. This asserted the opposite while hif-core#24 was
+# open - expansion then substituted the iteration ordinal, so the loop was left
+# unexpanded and kept its abort rather than silently driving the wrong bits.
 add_test(
     NAME genvar_nonunit_step
     COMMAND ${CMAKE_COMMAND}
