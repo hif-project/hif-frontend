@@ -318,3 +318,20 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/function_shorthand_parameter_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/function_shorthand_parameter_test.cmake
 )
+
+# Regression (hif-frontend#31): a signal shadowed into a `_sig_var` lost its
+# write-back when written through a task's out/inout argument, so it stopped
+# updating - silently, with output that compiles and reparses.
+#
+# Driven by a script rather than a bare exit-0 run because the defect never
+# affected exit status, and it *counts* write-backs rather than looking for one:
+# before the fix each signal already had exactly one, following its direct
+# assignment. The missing one is the second.
+add_test(
+    NAME task_out_arg_writeback
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/task_out_arg_writeback.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_out_arg_writeback_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/task_out_arg_writeback_test.cmake
+)
