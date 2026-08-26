@@ -3785,13 +3785,17 @@ attribute_instance_list tf_input_declaration
 }
 | function_port_list K_COMMA IDENTIFIER
 {
-    yydebug("function_port_list K_COMMA attribute_instance_list tf_input_declaration.");
+    yydebug("function_port_list: function_port_list K_COMMA IDENTIFIER.");
     RULE_BREAK_MACRO
     $$ = $1;
     messageAssert($1->size() > 0, "Unexpected empty function port list", nullptr, nullptr);
+    // `function f(input p, q);` - a bare identifier continues the previous
+    // item's direction and type, so the port is that item copied under a new
+    // name. Same shape as task_port_list's equivalent production below.
     Port * port_o = hif::copy($1->back());
     port_o->setName($3);
     free($3);
+    $$->push_back(port_o);
 }
 | function_port_list K_COMMA attribute_instance_list tf_input_declaration
 {
