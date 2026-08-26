@@ -619,23 +619,54 @@ auto VerilogParser::parse_BranchTerminal(char *identifier, Value *range_expressi
     return member_o;
 }
 
+auto VerilogParser::parse_PortType(const discipline_and_modifiers_t *discipline_and_modifiers) -> Type *
+{
+    Identifier *discipline = discipline_and_modifiers->discipline_identifier;
+    Range *range           = discipline_and_modifiers->range;
+    const bool isSigned    = discipline_and_modifiers->k_signed;
+
+    if (discipline == nullptr) {
+        return getSemanticType(range, isSigned);
+    }
+
+    // A bare identifier where a port's type belongs is a name the lexer does
+    // not know. Two things are spelled that way and the parser cannot tell them
+    // apart, because deciding needs the whole description: a Verilog-AMS
+    // discipline, and a SystemVerilog type such as `logic`, which is not a
+    // lexer keyword either. So the name is recorded and the decision deferred
+    // to FixDescription's _fixAMSDisciplines - the same place a *body*
+    // declaration written with `logic` already ends up (hif-frontend#21). If
+    // the name resolves to a discipline it stays one; if it is `logic` it
+    // becomes a resolved four-state bit; anything else fails there, where the
+    // whole description is available to say so.
+    auto *typeRef = new TypeReference();
+    typeRef->setName(discipline->getName());
+    setCodeInfo(typeRef);
+
+    if (range == nullptr) {
+        return typeRef;
+    }
+
+    // `logic [N:0]` is an Array of the element type, which visitArray folds
+    // into the same Bitvector `reg [N:0]` produces (hif-frontend#21).
+    auto *array = new Array();
+    setCodeInfo(array);
+    array->setSpan(hif::copy(range));
+    array->setType(typeRef);
+    array->setSigned(isSigned);
+
+    return array;
+}
+
 auto VerilogParser::parse_InoutDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, Identifier *identifier)
     -> Port *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     Port *port_o = new Port();
     setCodeInfo(port_o);
 
-    bool k_signed_opt = discipline_and_modifiers->k_signed;
-    Range *range_opt  = discipline_and_modifiers->range;
-
     port_o->setName(identifier->getName());
     port_o->setDirection(dir_inout);
-    port_o->setType(getSemanticType(range_opt, k_signed_opt));
+    port_o->setType(parse_PortType(discipline_and_modifiers));
 
     delete discipline_and_modifiers->range;
     delete discipline_and_modifiers->discipline_identifier;
@@ -650,11 +681,6 @@ auto VerilogParser::parse_InoutDeclaration(
     discipline_and_modifiers_t *discipline_and_modifiers,
     BList<Identifier> *list_of_identifiers) -> BList<Port> *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     discipline_and_modifiers_t *d = nullptr;
     auto *ret                     = new BList<Port>();
 
@@ -678,18 +704,18 @@ auto VerilogParser::parse_InoutDeclaration(
 auto VerilogParser::parse_InputDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, Identifier *identifier)
     -> Port *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     Port *port = new Port();
     setCodeInfo(port, false);
 
     port->setName(identifier->getName());
     port->setDirection(dir_in);
 
-    if (discipline_and_modifiers->range == nullptr) {
+    if (discipline_and_modifiers->discipline_identifier != nullptr) {
+        // parse_PortType copies the range, so this branch owns the original -
+        // unlike the two below, which transfer or ignore it.
+        port->setType(parse_PortType(discipline_and_modifiers));
+        delete discipline_and_modifiers->range;
+    } else if (discipline_and_modifiers->range == nullptr) {
         port->setType(makeVerilogBitType());
         if (discipline_and_modifiers->k_signed) {
             yywarning("Signed directive is ignored.");
@@ -716,11 +742,6 @@ auto VerilogParser::parse_InputDeclaration(
     discipline_and_modifiers_t *discipline_and_modifiers,
     BList<Identifier> *list_of_identifiers) -> BList<Port> *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     auto *ret                     = new BList<Port>();
     discipline_and_modifiers_t *d = nullptr;
 
@@ -745,19 +766,17 @@ auto VerilogParser::parse_OutputDeclaration(
     discipline_and_modifiers_t *discipline_and_modifiers,
     Identifier *identifier) -> Port *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     Port *port = new Port();
     setCodeInfo(port);
 
     port->setName(identifier->getName());
     port->setDirection(dir_out);
-    port->setType(getSemanticType(discipline_and_modifiers->range, discipline_and_modifiers->k_signed));
+    port->setType(parse_PortType(discipline_and_modifiers));
 
     delete discipline_and_modifiers->range;
+    // Was leaked here. Unreachable while a discipline identifier was refused
+    // outright; reachable now, so it has to be released like the range.
+    delete discipline_and_modifiers->discipline_identifier;
     delete discipline_and_modifiers;
     delete identifier;
 
@@ -806,11 +825,6 @@ auto VerilogParser::parse_OutputDeclaration(
     discipline_and_modifiers_t *discipline_and_modifiers,
     BList<Identifier> *list_of_identifiers) -> BList<Port> *
 {
-    messageAssert(
-        discipline_and_modifiers->discipline_identifier == nullptr,
-        "Discipline identifier is not supported (Verilog-AMS)", discipline_and_modifiers->discipline_identifier,
-        nullptr);
-
     auto *ret                     = new BList<Port>();
     discipline_and_modifiers_t *d = nullptr;
 
@@ -2354,6 +2368,92 @@ auto VerilogParser::parse_TaskDeclaration(
     return proc;
 }
 
+auto VerilogParser::parse_TaskDeclaration(
+    bool isAutomatic,
+    char *identifier,
+    BList<Port> *task_port_list,
+    list<block_item_declaration_t *> *block_item_declaration_list,
+    statement_t *statement_or_null) -> Procedure *
+{
+    auto *proc        = new Procedure();
+    auto *state_table = new StateTable();
+    auto *state       = new State();
+
+    setCodeInfo(proc);
+    setCodeInfo(state_table);
+    setCodeInfo(state);
+
+    // The arguments. Same Port-to-Parameter transfer as the non-ANSI overload
+    // performs on each task_item_declaration: only where the ports come from
+    // differs between the two forms, never what they mean.
+    for (BList<Port>::iterator it(task_port_list->begin()); it != task_port_list->end();) {
+        Port *port_o = *it;
+        it           = it.remove();
+
+        auto *param_o = new Parameter();
+        setCodeInfo(param_o);
+
+        param_o->setSourceLineNumber(port_o->getSourceLineNumber());
+        param_o->setSourceFileName(port_o->getSourceFileName());
+
+        param_o->setName(port_o->getName());
+        param_o->setType(hif::copy(port_o->getType()));
+        param_o->setDirection(port_o->getDirection());
+        Value *init_val = port_o->getValue();
+        if (init_val != nullptr) {
+            param_o->setValue(hif::copy(init_val));
+        }
+
+        proc->parameters.push_back(param_o);
+        delete port_o;
+    }
+    delete task_port_list;
+
+    // The body's own declarations. In the non-ANSI form these arrive
+    // interleaved with the arguments inside task_item_declaration; here the
+    // grammar has already separated them, so they are their own list.
+    for (auto *block_decl : *block_item_declaration_list) {
+        if (block_decl->local_parameter_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->local_parameter_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->local_parameter_declaration;
+        } else if (block_decl->integer_variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->integer_variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->integer_variable_declaration;
+        } else if (block_decl->reg_variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->reg_variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->reg_variable_declaration;
+        } else if (block_decl->variable_declaration != nullptr) {
+            BList<Declaration> *decl_list = blist_scast<Declaration>(block_decl->variable_declaration);
+            state_table->declarations.merge(*decl_list);
+            delete block_decl->variable_declaration;
+        } else {
+            messageDebugAssert(false, "Unexpected case", nullptr, _sem);
+        }
+
+        delete block_decl;
+    }
+    delete block_item_declaration_list;
+
+    _buildActionList(statement_or_null, state->actions);
+    state->setName(NameTable::getInstance()->registerName("task_state"));
+
+    state_table->setName(identifier);
+    state_table->states.push_back(state);
+
+    proc->setName(identifier);
+    proc->setStateTable(state_table);
+
+    if (!isAutomatic) {
+        proc->addProperty(PROPERTY_TASK_NOT_AUTOMATIC);
+    }
+
+    free(identifier);
+    return proc;
+}
+
 auto VerilogParser::parse_BlockVariableType(char *identifier, BList<Range> *dimension_list) -> Signal *
 {
     auto *ret = new Signal();
@@ -3412,8 +3512,8 @@ auto VerilogParser::parse_ModuleInstantiation(
 auto VerilogParser::parse_ModuleInstantiation(
     char *identifier,
     Range *range_opt,
-    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
-    -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *
+    std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list,
+    bool isSigned) -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *
 {
     std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *inst_l =
         this->parse_ModuleInstantiation(identifier, module_instance_list);
@@ -3429,6 +3529,11 @@ auto VerilogParser::parse_ModuleInstantiation(
         for (BList<Signal>::iterator j = ams_created_variables->begin(); j != ams_created_variables->end(); ++j) {
             auto *type = new Array();
             type->setSpan(hif::copy(range_opt));
+            // FixDescription_1::visitArray folds an array of bits into a
+            // Bitvector and carries this flag onto it, which is how
+            // `logic signed [3:0] s;` ends up with the same signed Bitvector
+            // that `reg signed [3:0] s;` produces (hif-frontend#34).
+            type->setSigned(isSigned);
             type->setType((*j)->setType(nullptr));
             (*j)->setType(type);
         }

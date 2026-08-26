@@ -93,6 +93,20 @@ public:
      *  PORT_DECLARATIONS
      * -----------------------------------------------------------------------
      */
+
+    /// @brief Builds the type of an ANSI-style port header.
+    /// @details When the header names a type the lexer does not know - a
+    /// Verilog-AMS discipline, or a SystemVerilog type such as `logic`, which
+    /// is not a lexer keyword either - the name is recorded as a TypeReference
+    /// and the decision of what it means is left to FixDescription's
+    /// _fixAMSDisciplines. That is where a *body* declaration written the same
+    /// way already ends up (hif-frontend#21), so both spellings of the same
+    /// type converge on one place. Otherwise this is getSemanticType.
+    /// @param discipline_and_modifiers The parsed header. Not consumed; the
+    /// range is copied, and the caller keeps its existing ownership handling.
+    /// @return The port's type.
+    auto parse_PortType(const discipline_and_modifiers_t *discipline_and_modifiers) -> hif::Type *;
+
     auto parse_InoutDeclaration(discipline_and_modifiers_t *discipline_and_modifiers, hif::Identifier *identifier)
         -> hif::Port *;
 
@@ -392,6 +406,20 @@ public:
         std::list<task_item_declaration_t *> *task_item_declaration_list,
         statement_t *statement_or_null) -> hif::Procedure *;
 
+    /// @brief ANSI-style task header: the arguments are declared in a
+    /// parenthesised list rather than as items in the body.
+    ///
+    /// Distinct from the overload above only in where the arguments come from
+    /// - the body's declarations arrive separately here, because the grammar
+    /// has already split them - so the two agree on everything a task is
+    /// (hif-frontend#25).
+    auto parse_TaskDeclaration(
+        bool isAutomatic,
+        char *identifier,
+        hif::BList<hif::Port> *task_port_list,
+        std::list<block_item_declaration_t *> *block_item_declaration_list,
+        statement_t *statement_or_null) -> hif::Procedure *;
+
     //    hif::Procedure * parse_TaskDeclaration( hif::Identifier * identifier,
     //            hif::BList<hif::Port> * task_port_list,
     //            hif::BList<block_item_declaration_t> * block_item_declaration_list,
@@ -544,10 +572,14 @@ public:
         std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
         -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
+    /// @param isSigned true when the declaration carried `signed`, as in
+    ///        `logic signed [3:0] s;`. Only meaningful on the net-declaration
+    ///        reading of this rule; a module instantiation cannot be signed.
     auto parse_ModuleInstantiation(
         char *identifier,
         hif::Range *range_opt,
-        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list)
+        std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *module_instance_list,
+        bool isSigned = false)
         -> std::list<module_instance_and_net_ams_decl_identifier_assignment_t *> *;
 
     auto parse_ParameterValueAssignment(list_of_parameter_assignment_t *list_of_parameter_assignment)

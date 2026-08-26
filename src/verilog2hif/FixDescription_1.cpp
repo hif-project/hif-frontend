@@ -94,6 +94,10 @@ private:
     template <typename T> void _fixSystemTaskCalls(T *call);
     auto _fixiteratedConcat(hif::FunctionCall *o, bool aggressive) -> bool;
 
+    /// @brief Rejects a replication whose repeat count is not a constant
+    /// expression. Diagnoses and exits; never returns on an invalid count.
+    void _checkReplicationCount(hif::FunctionCall *o);
+
     auto _fixLocalParam(hif::Identifier *o) -> bool;
     auto _fixImplicitDeclaredNets(hif::Identifier *o) -> bool;
 
@@ -808,6 +812,48 @@ auto FixDescription_1::_fixAMSDisciplines(hif::TypeReference *tr) -> bool
     // Logic discipline is mapped as TypeDef since it has descrete domain.
     if (trName == "logic") {
         tr->setName("ams_logic");
+        hif::semantics::resetDeclarations(tr);
+        if (hif::semantics::getDeclaration(tr, _sem) != nullptr) {
+            return true;
+        }
+
+        // Reaching this point means "ams_logic" does not resolve either, i.e.
+        // the Verilog-AMS disciplines library is not part of this description.
+        // The name therefore is not the AMS discipline but the SystemVerilog
+        // four-state type, which every RTL source uses in place of "reg".
+        //
+        // Renaming unconditionally used to leave a TypeReference with no
+        // declaration behind, and the first pass that needed its base type
+        // aborted the tool (referencesUtils.cpp / getBaseType.cpp).
+        //
+        // "logic" is a resolved four-state bit, which is exactly what the AMS
+        // typedef expands to as well - factory.bit(true, true, false) in
+        // VerilogSemantics - so both readings agree on the underlying type and
+        // the substitution is safe in either world. A "logic [N:0]" declaration
+        // arrives here as an Array of this Bit and visitArray folds it into a
+        // Bitvector, the same shape "reg [N:0]" produces.
+        auto *bit = new hif::Bit();
+        bit->setLogic(true);
+        bit->setResolved(true);
+        bit->setConstexpr(false);
+
+        // "logic" is not a lexer keyword: it arrives here as an identifier, so
+        // the declaration was parsed as an AMS discipline *net* and carries net
+        // semantics. A SystemVerilog "logic" is a variable, like "reg", and the
+        // two differ in their uninitialised value - a net defaults to 'Z', a
+        // variable to 'X'. Without this the same design written with "logic"
+        // instead of "reg" silently starts from a different state.
+        //
+        // visitSignal/visitPort read IS_VARIABLE_TYPE *after* descending into
+        // the type, so marking the declaration here is seen by the pass that
+        // installs the default value.
+        auto *decl = hif::getNearestParent<hif::DataDeclaration>(tr);
+        if (decl != nullptr && hif::isSubNode(tr, decl->getType()) && !decl->checkProperty(IS_VARIABLE_TYPE)) {
+            decl->addProperty(IS_VARIABLE_TYPE);
+        }
+
+        tr->replace(bit);
+        delete tr;
         return true;
     }
 
@@ -973,6 +1019,16 @@ void FixDescription_1::_fixProcessesWithWait(hif::StateTable *o)
         return;
     }
     auto *w = new hif::Wait();
+
+    // Say what this node is. It is not a statement the source wrote: it records
+    // that the process loops back round and reapplies its static sensitivity,
+    // which is what the SystemC lowering emits at the tail of its
+    // `while (true)`. Every field is null, which makes it identical to the node
+    // vhdl2hif produces for `wait;` - and that means the opposite, suspend
+    // permanently. A backend reading the tree had no way to tell them apart and
+    // necessarily got one of the two wrong (hif-backend#46).
+    w->addProperty(PROPERTY_PROCESS_LOOP_TAIL);
+
     o->states.front()->actions.push_back(w);
 }
 
@@ -1248,6 +1304,73 @@ void FixDescription_1::_fixMissingPortDir(hif::Port *o, const hif::semantics::Re
     }
 }
 
+void FixDescription_1::_checkReplicationCount(hif::FunctionCall *o)
+{
+    auto *times = dynamic_cast<hif::ValueTPAssign *>(o->templateParameterAssigns.front());
+    if (times == nullptr) {
+        return;
+    }
+    hif::Value *count = times->getValue();
+    if (count == nullptr || dynamic_cast<hif::ConstValue *>(count) != nullptr) {
+        // Already folded to a literal by the caller's simplify: constant by
+        // construction, and the caller checks it is positive.
+        return;
+    }
+
+    // IEEE Std 1364-2005, 5.1.14: "the first expression in a replication
+    // operation shall be a non-zero, non-X and non-Z constant expression".
+    // A count that survives simplification is symbolic, which is legal only if
+    // every symbol in it is itself constant - a parameter, a localparam or a
+    // genvar. Left unchecked, an illegal count is not merely accepted: it is
+    // re-emitted verbatim, so the toolchain round-trips a design no simulator
+    // will elaborate (#20).
+    std::list<hif::Object *> symbols;
+    hif::semantics::collectSymbols(symbols, count, _sem);
+    for (auto *symbol : symbols) {
+        auto *call = dynamic_cast<hif::FunctionCall *>(symbol);
+        if (call != nullptr && call->getName().find("_system_") == 0 && call->getName() != "_system_clog2") {
+            // $clog2 is the one system function IEEE Std 1364-2005 (17.11)
+            // defines as usable in a constant expression. The others report
+            // simulation state - $random, $time, $realtime - so a count built
+            // from one of them cannot be statically determined. Matching on
+            // the name is what identifies them: _fixSystemTaskCalls has
+            // already rewritten `$random` to `_system_random`, and the
+            // children of this call were visited before it.
+            messageError(
+                "Replication count is not a constant expression: it calls the system function '" +
+                    std::string(call->getName()) + "', whose value is not known statically.",
+                symbol, _sem);
+        }
+
+        auto *instance = dynamic_cast<hif::Instance *>(symbol);
+        if (instance != nullptr && dynamic_cast<hif::Library *>(instance->getReferencedType()) != nullptr) {
+            // The `standard` library instance a system call carries; it names
+            // no value of its own.
+            continue;
+        }
+
+        hif::Declaration *decl = hif::semantics::getDeclaration(symbol, _sem);
+        if (decl == nullptr) {
+            // Not this check's business. An unresolved symbol is reported, with
+            // its own diagnostic, by the passes that need its declaration.
+            continue;
+        }
+        if (decl->checkProperty(PROPERTY_GENVAR)) {
+            // A genvar is a hif::Variable at this point, but IEEE Std
+            // 1364-2005, 12.1.3.2 makes it constant within its generate loop:
+            // `{g{1'b1}}` is legal and must keep translating.
+            continue;
+        }
+        if (dynamic_cast<hif::Signal *>(decl) != nullptr || dynamic_cast<hif::Port *>(decl) != nullptr ||
+            dynamic_cast<hif::Variable *>(decl) != nullptr) {
+            messageError(
+                "Replication count is not a constant expression: it reads '" + std::string(decl->getName()) +
+                    "', which is a signal, a port or a variable.",
+                symbol, _sem);
+        }
+    }
+}
+
 auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, bool aggressive) -> bool
 {
     if (o->getName() != "iterated_concat") {
@@ -1260,6 +1383,11 @@ auto FixDescription_1::_fixiteratedConcat(hif::FunctionCall *o, bool aggressive)
     }
 
     hif::manipulation::simplify(o, _sem, opt);
+
+    // After simplification, so that a count which folds to a literal is never
+    // reported. Before the asserts below, which would otherwise turn an
+    // illegal input into an internal error rather than a diagnostic.
+    _checkReplicationCount(o);
 
     auto *cv1 = dynamic_cast<hif::ConstValue *>(
         dynamic_cast<hif::ValueTPAssign *>(o->templateParameterAssigns.front())->getValue());

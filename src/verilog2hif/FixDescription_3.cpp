@@ -321,6 +321,92 @@ void prerefineFixes(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
 }
 
 // /////////////////////////////////////////////////////////////////////////////
+// _expandForGenerates
+// /////////////////////////////////////////////////////////////////////////////
+
+/// @brief Replicates every `for generate` in place, one copy per iteration.
+///
+/// Everything after this point in step 3 - splitLogicConesLoops,
+/// generateConeFunctions, addConesPCalls - assumes that a continuous assignment
+/// is valid in the scope of the declaration it drives. A ForGenerate breaks that
+/// assumption: generateConeFunctions places the cone beside the driven
+/// declaration and fills it with copies of the driver assignments, so a driver
+/// living inside the loop is copied out of the loop, taking its references to
+/// loop-scoped names with it. Those are the genvar, and - since hif-frontend#23
+/// declared it there - the split signal. Neither resolves where the cone lands,
+/// and standardization aborts with "Declaration not found" naming the cone.
+///
+/// The cone cannot follow the assignment into the loop instead: its callers are
+/// the readers of the driven declaration, which sit at module scope, so
+/// addConesPCalls would emit a call that does not resolve. Passing the genvar as
+/// a cone parameter does not work either, because a module-scope reader has no
+/// index to pass and needs every iteration run. Expanding the loop is what
+/// removes the mismatch rather than moving it.
+///
+/// Only ForGenerate is expanded. An IfGenerate is left alone: it is not
+/// replicated and declares no index, so it produces neither loop-scoped name,
+/// and expanding it would change output for designs that have a different
+/// defect behind them (hif-frontend#32, hif-backend#86).
+/// @return True when at least one loop was expanded, so the caller knows the
+///         reference map and types need rebuilding.
+auto expandForGenerates(System *system, hif::semantics::ILanguageSemantics *sem, bool preserveStructure) -> bool
+{
+    // Expansion is only safe once instances have been specialized, and
+    // partialFlattening - which is what specializes them - does nothing under
+    // preserveStructure. Expanding anyway would resolve a parameterized loop
+    // bound against the module's *default*: a leaf declaring `parameter N = 2`
+    // and instantiated as `#(.N(4))` elaborates two iterations instead of four,
+    // at exit 0. Measured, not assumed.
+    //
+    // So under -s the ForGenerate is left standing, which is also what the flag
+    // asks for, and a design that needs a cone across it keeps the abort it
+    // already has today. That is the same trade as the unit-step test below:
+    // a loud failure in preference to a silently different design.
+    if (preserveStructure) {
+        return false;
+    }
+
+    using Query = hif::HifTypedQuery<ForGenerate>;
+    Query query;
+    query.skipStandardScopes = true;
+    Query::Results generates;
+    hif::search(generates, system, query);
+
+    // Only the outermost loops. Expanding one replicates its body, and the
+    // replication visits the copy, so a nested loop is expanded as part of its
+    // parent - and the pointer collected for it above refers to a node that no
+    // longer exists by then. The whole set is collected before anything is
+    // expanded, so this test never inspects a freed node.
+    std::vector<ForGenerate *> outermost;
+    for (auto *generate : generates) {
+        if (hif::getNearestParent<ForGenerate>(generate) != nullptr) {
+            continue;
+        }
+        outermost.push_back(generate);
+    }
+
+    // simplify_constants and simplify_template_parameters are deliberately left
+    // off. _simplifyForGenerate turns both on for itself while it resolves the
+    // loop bound and restores them afterwards, so the bound is still folded;
+    // turning them on here instead would fold them across the whole design and
+    // strip the parameterisation the translation is meant to keep - measured on
+    // the clog2_replication test, where DEPTH stopped being referenced at all.
+    hif::manipulation::SimplifyOptions opt;
+    opt.simplify_generates = true;
+
+    for (auto *generate : outermost) {
+        // Deliberately the Object* overload. Expanding the loop deletes the
+        // ForGenerate, and simplify() returns that freed pointer; the
+        // simplify<T>() template then dynamic_casts it, which is a read of
+        // freed memory and segfaults here. Casting at the call site picks the
+        // overload that hands back an Object* nobody dereferences. hif-core#23.
+        hif::manipulation::simplify(static_cast<Object *>(generate), sem, opt);
+    }
+
+    return !outermost.empty();
+}
+
+// /////////////////////////////////////////////////////////////////////////////
 // _splitLogicConesLoops
 // /////////////////////////////////////////////////////////////////////////////
 
@@ -421,9 +507,65 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
             RefSet &refSet        = refMap[decl];
             std::string tokenName = tokenNames[token];
 
+            // The statement being split. The write-back generated below stands
+            // for part of it and is attributed to it: without that, a signal
+            // with more than one of these locations offers nothing to tell them
+            // apart, because the position was the only field that differed
+            // (hif-muffin#24).
+            //
+            // The token is the assign's left-hand side and is never detached
+            // before the write-back is inserted, so its parent is that assign;
+            // the insertion below already depends on it being an object in a
+            // BList. Asserting says so rather than leaving it implied.
+            auto *sourceAssign = dynamic_cast<Assign *>(token->getParent());
+            messageAssert(sourceAssign != nullptr, "Expected the token's parent to be its Assign", token, sem);
+
+            // The statement's position, not the token's. They usually share a
+            // line, but an assignment spanning several lines gives its target a
+            // position inside itself rather than the position of the statement,
+            // and it is the statement the write-back stands for.
+            //
+            // Deliberately no fallback to the token when this is empty. It is
+            // empty for a concatenation target, whose provenance is lost before
+            // this transformation runs - and rebuilding it from a child here
+            // would hide that upstream loss while fixing none of it, since
+            // every other node that shape produces is unattributed too. That is
+            // hif-frontend#37.
+            //
+            // The split declaration is deliberately not attributed: a later
+            // refinement in this same file rebuilds signals as variables with
+            // only name, type and value carried over (see "Refine to variable"),
+            // so any code info set here is discarded before output. Also
+            // hif-frontend#37.
+            const Object::CodeInfo &origin = sourceAssign->getCodeInfo();
+
             // 1
             auto *sig = new Signal();
-            hif::manipulation::addDeclarationInContext(sig, decl, false);
+            // The split signal normally belongs beside the declaration whose
+            // assignment is being split. A `for generate` is the exception, and
+            // specifically a ForGenerate rather than a generate in general
+            // (hif-frontend#23):
+            //
+            //  - the assignment may read the genvar, whose declaration lives in
+            //    the ForGenerate. generateConeFunctions later copies that
+            //    assignment into a procedure declared beside this signal, so a
+            //    signal at module scope puts the copy out of the genvar's
+            //    scope and standardization aborts on the unresolvable
+            //    reference;
+            //  - one signal outside the loop would be shared by every
+            //    iteration, so all iterations would drive the same net.
+            //
+            // Neither applies to an IfGenerate: it has no index and is not
+            // replicated, so its split signals stay where they have always
+            // been. Moving them would be a behaviour change with no defect
+            // behind it - and the declaration would land somewhere hif2verilog
+            // renders incorrectly, which is hif-backend#78.
+            auto *forGenerate = hif::getNearestParent<ForGenerate>(token);
+            if (forGenerate != nullptr) {
+                forGenerate->declarations.push_back(sig);
+            } else {
+                hif::manipulation::addDeclarationInContext(sig, decl, false);
+            }
             sig->setName(tokenName);
             Type *tokenType = hif::semantics::getSemanticType(token, sem);
             messageAssert(tokenType != nullptr, "Cannot type token", token, sem);
@@ -442,7 +584,8 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
             auto *ass = new Assign();
             ass->setLeftHandSide(hif::copy(token));
             ass->setRightHandSide(new Identifier(tokenName));
-            BList<Object>::iterator jt(token->getParent());
+            ass->setCodeInfo(origin);
+            BList<Object>::iterator jt(sourceAssign);
             jt.insert_after(ass);
 
             // 3
@@ -490,6 +633,8 @@ struct InfoStruct {
     RefSet lhsBlockingUsing;
     // Ref is read (in condition or RHS of procedural assigns or param of method call)
     RefSet readUsing;
+    // Ref is an actual bound to an out/inout formal, so the call writes it
+    RefSet lhsCallUsing;
 
     bool wasLhsContinuous{false};
 
@@ -506,6 +651,7 @@ InfoStruct::InfoStruct()
     , lhsNonBlockingUsing()
     , lhsBlockingUsing()
     , readUsing()
+    , lhsCallUsing()
 
 {
     // ntd
@@ -526,6 +672,7 @@ InfoStruct::InfoStruct(const InfoStruct &other)
     , lhsNonBlockingUsing(other.lhsNonBlockingUsing)
     , lhsBlockingUsing(other.lhsBlockingUsing)
     , readUsing(other.readUsing)
+    , lhsCallUsing(other.lhsCallUsing)
     , wasLhsContinuous(other.wasLhsContinuous)
 {
     // ntd
@@ -546,6 +693,7 @@ auto InfoStruct::operator=(const InfoStruct &other) -> InfoStruct &
     lhsNonBlockingUsing = other.lhsNonBlockingUsing;
     lhsBlockingUsing    = other.lhsBlockingUsing;
     readUsing           = other.readUsing;
+    lhsCallUsing        = other.lhsCallUsing;
     wasLhsContinuous    = other.wasLhsContinuous;
 
     return *this;
@@ -573,6 +721,11 @@ auto InfoStruct::isOnlyInContinuousAssignments() const -> bool
     if (!readUsing.empty()) {
         return false;
     }
+    // These used to be counted in readUsing, and this check kept the answer the
+    // same when they moved out of it.
+    if (!lhsCallUsing.empty()) {
+        return false;
+    }
 
     return true;
 }
@@ -595,7 +748,41 @@ void calculateRequiredDeclType(
     isVariable = !infos.lhsContinuousUsing.empty() || !infos.lhsBlockingUsing.empty() || infos.wasLhsContinuous;
 }
 
-void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
+/// @brief The formal a symbol's enclosing actual is bound to, when that formal
+///        is written by the call.
+///
+/// An actual bound to an `out` or `inout` formal is a write, not a read. The
+/// direction is the authoritative signal and is what this consults: on the
+/// trees these frontends build only a task call can have such a formal, since
+/// neither a Verilog nor a VHDL function declares one, but keying on the
+/// direction rather than on the call's class says the rule rather than its
+/// current consequence.
+///
+/// @param symb The symbol to classify.
+/// @param sem The reference semantics.
+/// @return The formal Parameter, or nullptr when the symbol is not written by a
+///         call.
+auto getWritingCallFormal(Object *symb, hif::semantics::ILanguageSemantics *sem) -> Parameter *
+{
+    auto *actual = hif::getNearestParent<ParameterAssign>(symb);
+    if (actual == nullptr) {
+        return nullptr;
+    }
+
+    Parameter *formal = hif::semantics::getDeclaration(actual, sem);
+    if (formal == nullptr) {
+        return nullptr;
+    }
+
+    const PortDirection direction = formal->getDirection();
+    if (direction != dir_out && direction != dir_inout) {
+        return nullptr;
+    }
+
+    return formal;
+}
+
+void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty, hif::semantics::ILanguageSemantics *sem)
 {
     for (auto &i : refMap) {
         auto *decl = dynamic_cast<DataDeclaration *>(i.first);
@@ -623,6 +810,13 @@ void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty)
                 wait != nullptr &&
                 (hif::objectIsInSensitivityList(symb, opts) || hif::isSubNode(symb, wait->getCondition()))) {
                 infoMap[decl].waitUsing.insert(symb);
+            } else if (getWritingCallFormal(symb, sem) != nullptr) {
+                // A task's out/inout argument. This is a write, and used to
+                // fall through to readUsing below because the classification
+                // never consulted the formal's direction - so refineToVariables
+                // renamed the reference to the shadow variable and inserted no
+                // write-back, and the signal stopped updating (hif-frontend#31).
+                infoMap[decl].lhsCallUsing.insert(symb);
             } else if (ass != nullptr) {
                 bool isTarget    = hif::manipulation::isInLeftHandSide(symb);
                 bool isInGlobact = dynamic_cast<GlobalAction *>(ass->getParent()) != nullptr;
@@ -922,7 +1116,7 @@ void generateConeFunctions(
         hif::semantics::getAllReferences(procRefs, sem, p);
 
         // updating infos
-        fillInfoMap(procRefs, infoMap, true);
+        fillInfoMap(procRefs, infoMap, true, sem);
 
         // updating refs
         for (auto &procRef : procRefs) {
@@ -1313,6 +1507,48 @@ void refineToVariables(
                 jt.insert_after(sigAss);
             }
 
+            for (auto *ref : infos.lhsCallUsing) {
+                // A task writes the signal through an out/inout argument:
+                //   setnext(sig)  -->
+                //   setnext(var);
+                //   sig <= var;
+                //
+                // The rename alone is what the reference used to get, because
+                // the classification counted it as a read. That publishes
+                // nothing: the shadow is updated by the call and the signal
+                // never is, so every reader freezes at whatever the last direct
+                // assignment left (hif-frontend#31).
+                auto *call = hif::getNearestParent<ProcedureCall>(ref);
+                messageAssert(call != nullptr, "Parent call not found", ref, sem);
+
+                auto *actual = hif::getNearestParent<ParameterAssign>(ref);
+                messageAssert(actual != nullptr, "Parent actual not found", ref, sem);
+
+                Procedure *parentCone = getParentCone(ref, conesMap);
+                if (parentCone != nullptr) {
+                    // Inside cone: skip, as the assignment loop above does.
+                    continue;
+                }
+
+                // The target has to name the signal and the source the shadow,
+                // so the two copies are taken on either side of the rename -
+                // the same order the assignment loop above relies on. Copying
+                // the whole actual rather than the reference keeps a partial
+                // write like `t(sig[3:0])` writing back only its own bits.
+                Value *target = hif::copy(actual->getValue());
+
+                hif::objectSetName(ref, varName);
+                hif::semantics::setDeclaration(ref, var);
+
+                auto *sigAss = new Assign();
+                sigAss->setCodeInfo(call->getCodeInfo());
+                sigAss->setLeftHandSide(target);
+                sigAss->setRightHandSide(hif::copy(actual->getValue()));
+
+                BList<Action>::iterator jt(call);
+                jt.insert_after(sigAss);
+            }
+
             RefSet readUsing;
             readUsing.insert(infos.readUsing.begin(), infos.readUsing.end());
             readUsing.insert(infos.rhsContinuousUsing.begin(), infos.rhsContinuousUsing.end());
@@ -1686,10 +1922,30 @@ void partialFlattening(
     hif::semantics::GetReferencesOptions opt;
     opt.include_unreferenced = true;
 
+    // The loop above has no natural bound: it stops when collectOnAssigns stops
+    // asking for work, and nothing guarantees that ever happens.
+    //
+    // It does not for a design unit that was instantiated in the source and is
+    // no longer instantiated after elaboration - the losing branch of an
+    // `if generate`, say. collectOnAssigns still collects its view, because it
+    // still drives an output port with a continuous assignment, so
+    // needsFlattening stays true; but there is no instance left to flatten, so
+    // performPartialFlattening changes nothing and the next round collects
+    // exactly the same set. Measured on such a design: identical
+    // `views={leaf, top}, viewRefs={}` from the second iteration onwards, flat
+    // memory, 430 iterations a second, forever.
+    //
+    // Repeating a round that changed nothing cannot make progress, so stopping
+    // is not a heuristic cut-off. The work left undone is flattening a design
+    // unit nothing instantiates, which is what should be left undone.
+    Views previousViews;
+    ViewRefs previousViewRefs;
+    bool hasPreviousRound = false;
+
     for (;;) {
         // Filling info map.
         InfoMap infoMap;
-        fillInfoMap(refMap, infoMap, false);
+        fillInfoMap(refMap, infoMap, false, sem);
 
         // Collecting output ports targets of blocking/continuous assignments
         collectOnAssigns(infoMap, sem, views, viewRefs);
@@ -1700,6 +1956,13 @@ void partialFlattening(
         if (!needsFlattening) {
             break;
         }
+        if (hasPreviousRound && views == previousViews && viewRefs == previousViewRefs) {
+            break;
+        }
+        previousViews    = views;
+        previousViewRefs = viewRefs;
+        hasPreviousRound = true;
+
         performPartialFlattening(system, views, viewRefs, sem);
 
         // Resetting infos
@@ -1774,6 +2037,18 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
 #endif
 
     // ///////////////////////////////////////////////////////////////////
+    // Expanding for generates
+    // ///////////////////////////////////////////////////////////////////
+    // After partial flattening, which is what specializes parameterized
+    // instances, and before the logic-cone passes, which cannot represent a
+    // driver that lives in a scope the cone does not.
+    if (expandForGenerates(o, sem, preserveStructure)) {
+        refMap.clear();
+        hif::semantics::getAllReferences(refMap, sem, o, opt);
+        hif::semantics::typeTree(o, sem);
+    }
+
+    // ///////////////////////////////////////////////////////////////////
     // Pre refinements
     // ///////////////////////////////////////////////////////////////////
     prerefineFixes(topViews, refMap, sem);
@@ -1787,7 +2062,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // Filling info map
     // ///////////////////////////////////////////////////////////////////
     InfoMap infoMap;
-    fillInfoMap(refMap, infoMap, true);
+    fillInfoMap(refMap, infoMap, true, sem);
 
     // ///////////////////////////////////////////////////////////////////
     // Fix logic cones

@@ -44,6 +44,18 @@ extern const char *PROPERTY_TASK_NOT_AUTOMATIC;
 
 extern const char *PROPERTY_GENVAR;
 
+// Marks the empty Wait that _fixProcessesWithWait appends to the end of a
+// process that suspends. That node is not a statement the source wrote: it
+// records that the process loops back round and reapplies its static
+// sensitivity, which is what the SystemC lowering needs to emit at the tail of
+// its `while (true)`.
+//
+// Without this marker an empty Wait is ambiguous, because VHDL's `wait;` -
+// suspend permanently - produces a node identical in every field. The two mean
+// opposite things, so a backend that has to choose gets one of them wrong
+// (hif-backend#46).
+extern const char *PROPERTY_PROCESS_LOOP_TAIL;
+
 // Property related to Assign. Default case (if not set): blocking assignment,
 // else (if set): non-blocking assignment.
 extern const char *NONBLOCKING_ASSIGNMENT;

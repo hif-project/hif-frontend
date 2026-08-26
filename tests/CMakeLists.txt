@@ -98,3 +98,242 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/user_function_continuous_assign_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/user_function_continuous_assign_test.cmake
 )
+
+# Regression (hif-frontend#15): verilog2hif aborted on a replication whose
+# repeat count is a $clog2 call, e.g. `{$clog2(DEPTH){1'b1}}`. Fixed in
+# hif-core, not here; this fixture exists because the observable regression is
+# here.
+#
+# Driven by a script rather than being a bare exit-0 run: the point of this
+# path is that a *symbolic* replication count survives, and a fix that folded
+# the count away would also exit 0.
+add_test(
+    NAME clog2_replication
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/clog2_replication_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/clog2_replication_test.cmake
+)
+
+# Regression: verilog2hif aborted on the SystemVerilog `logic` type, which was
+# mistaken for the Verilog-AMS `logic` discipline and renamed to an `ams_logic`
+# typedef that a plain Verilog input never declares.
+#
+# Driven by a script rather than being a bare exit-0 run: `logic` and `reg`
+# spell the same four-state variable, so the fix has to make them agree on the
+# uninitialised value too ('X', not 'Z'), and it must not disturb the AMS
+# reading of the same identifier.
+add_test(
+    NAME sv_logic_type
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sv_logic_type_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_type_test.cmake
+)
+
+# Regression: the same type in an ANSI-style port header, which the AMS
+# discipline rule refused at parse time even after sv_logic_type made the body
+# declaration work. Driven by a script for the same reason: each fixture is
+# compared against an already-supported twin that means the same thing, so a
+# header that parses but produces a different type or default value fails.
+add_test(
+    NAME sv_logic_ansi_port
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sv_logic_ansi_port_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/sv_logic_ansi_port_test.cmake
+)
+
+# Regression: verilog2hif accepted a replication whose repeat count is not a
+# constant expression (`{$random{1'b1}}`) and re-emitted it verbatim, so the
+# toolchain round-tripped a design no simulator will elaborate. A second illegal
+# spelling (`{$time{1'b1}}`) reached hif-core and aborted there instead.
+#
+# Driven by a script rather than being an expect-failure run: the check must
+# reject with a diagnostic that names the offending count and leaves no
+# artifact, and it must not touch the legal symbolic counts - parameter,
+# localparam, user constant function, genvar - which is the half a bare
+# exit-nonzero assertion would miss.
+add_test(
+    NAME nonconst_replication_count
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/nonconst_replication_count_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/nonconst_replication_count_test.cmake
+)
+
+# Regression (hif-frontend#25): verilog2hif refused a task's `inout` argument
+# and every ANSI-style task header. Two bare-yyerror holes in the same grammar
+# area - tf_inout_declaration_identifiers, and the whole task_port_item /
+# task_port_list family together with the singular tf_output_declaration and
+# tf_inout_declaration it needs.
+#
+# Driven by a script rather than being a bare exit-0 run: filling in a
+# production by copying its twin is exactly the operation that gets a direction
+# wrong, and a task parsed as `output` where the source said `inout` would exit
+# 0 here and only surface in a backend. The script counts the directions and
+# names the two spellings easiest to leave behind - `inout integer n;` and the
+# `task t(output p, q);` shorthand.
+add_test(
+    NAME task_argument_directions
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/task_argument_directions.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_argument_directions_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/task_argument_directions_test.cmake
+)
+
+# Regression (hif-frontend#23): verilog2hif aborted on a continuous assignment
+# inside a `for generate` reading the genvar. splitLogicConesLoops declared the
+# split signal beside its target - module scope - and generateConeFunctions then
+# copied the assignment into a procedure there, out of the genvar's scope.
+#
+# Driven by a script rather than being a bare exit-0 run: what makes the
+# reference resolve is *where* the split declaration lands, and a change that
+# silenced the abort while leaving both iterations sharing one signal would also
+# reintroduce the silent half. Since hif-frontend#30 the loop is expanded before
+# the logic-cone passes, so the test counts one split signal per iteration
+# instead of checking where the declaration sits.
+add_test(
+    NAME genvar_continuous_assign
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_continuous_assign_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_continuous_assign_test.cmake
+)
+
+# Regression (hif-frontend#30): a net driven by a continuous assignment inside a
+# `for generate` and read from outside the loop aborted the tool, naming the cone
+# for the net itself rather than for a split signal. That cone must stay at module
+# scope because the reading process is there, so #23's remedy - moving the
+# declaration into the loop - cannot apply, and the loop is expanded instead.
+#
+# Asserts the structure, not just exit 0: the cone exists and is called, no
+# reference to the genvar survives, and each iteration has its own split signal.
+add_test(
+    NAME genvar_cone_reader
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_cone_reader.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_cone_reader_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_cone_reader_test.cmake
+)
+
+# Regression (hif-frontend#30, strided form): a loop whose index advances by more
+# than one, driving a net read from outside it, must be expanded over the values
+# the genvar actually takes. This asserted the opposite while hif-core#24 was
+# open - expansion then substituted the iteration ordinal, so the loop was left
+# unexpanded and kept its abort rather than silently driving the wrong bits.
+add_test(
+    NAME genvar_nonunit_step
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_nonunit_step.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_nonunit_step_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_nonunit_step_test.cmake
+)
+
+# The forms of `generate` that already worked, kept as a separate test so that
+# breaking one of them fails under its own name rather than widening the fix
+# above. Covers the two the fix must not touch - an if generate, and a
+# continuous assign inside a for generate that does not read the genvar - plus
+# the procedural and instance forms from the issue's acceptance matrix.
+add_test(
+    NAME genvar_generate_controls
+    COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/genvar_generate_controls
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign_controls.v
+)
+
+# Regression (hif-muffin#24): the write-back assignment splitLogicConesLoops
+# synthesizes for a part-select continuous assign carried no source
+# attribution, so two fault locations on one signal produced fault records
+# identical in every field but `id`.
+#
+# Driven by a script rather than being a bare exit-0 run: the defect never
+# affected exit status. The assertion that discriminates is that each source
+# line accounts for two attributed assignments - the cone and its write-back -
+# because before the fix each accounted for one.
+add_test(
+    NAME cone_writeback_code_info
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cone_writeback_code_info.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/cone_writeback_code_info_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cone_writeback_code_info_test.cmake
+)
+
+# Regression (hif-frontend#32): an `if generate` with an else branch aborted in
+# hif-core's simplify, because a reduction over a constant was not folded and
+# the else condition therefore never reached a ConstValue. Fixed in hif-core;
+# kept fixed from this side, where it is observable.
+#
+# Asserts which branch survived, not just exit 0: selecting the wrong branch of
+# a static if generate is silent.
+add_test(
+    NAME if_generate_instance
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/if_generate_instance.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/if_generate_instance_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/if_generate_instance_test.cmake
+)
+
+# Regression (hif-frontend#32): the same construct with the instance in the
+# branch that loses. partialFlattening's loop then never terminated, because
+# collectOnAssigns kept asking for a view no instance referenced any more.
+#
+# TIMEOUT is part of the regression rather than housekeeping: the failure mode
+# is a stable oscillation - flat memory, no progress, no end - so without a
+# deadline a regression would wedge the suite instead of failing it. The fixture
+# translates in well under a second.
+add_test(
+    NAME if_generate_dead_branch_instance
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/if_generate_dead_branch_instance.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/if_generate_dead_branch_instance_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/if_generate_dead_branch_instance_test.cmake
+)
+set_tests_properties(if_generate_dead_branch_instance PROPERTIES TIMEOUT 60)
+
+# Regression (hif-frontend#27): a shorthand parameter in an ANSI function header
+# - `function f(input p, q);` - was built and never pushed onto the port list,
+# so it vanished. task_port_list's equivalent production does push
+# (hif-frontend#25), which is why the fixture carries the task spelling as a
+# control: the two had silently diverged.
+#
+# Driven by a script rather than a bare exit-0 run because the defect is only
+# half loud. A called function aborts in hif-core's declaration lookup, which
+# exit status catches; an uncalled one translates at exit 0 with the wrong
+# signature, which it does not. The parameters are counted for that reason, and
+# the inherited type is checked separately from the inherited direction.
+add_test(
+    NAME function_shorthand_parameter
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/function_shorthand_parameter.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/function_shorthand_parameter_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/function_shorthand_parameter_test.cmake
+)
+
+# Regression (hif-frontend#31): a signal shadowed into a `_sig_var` lost its
+# write-back when written through a task's out/inout argument, so it stopped
+# updating - silently, with output that compiles and reparses.
+#
+# Driven by a script rather than a bare exit-0 run because the defect never
+# affected exit status, and it *counts* write-backs rather than looking for one:
+# before the fix each signal already had exactly one, following its direct
+# assignment. The missing one is the second.
+add_test(
+    NAME task_out_arg_writeback
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/task_out_arg_writeback.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_out_arg_writeback_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/task_out_arg_writeback_test.cmake
+)

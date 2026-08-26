@@ -37,6 +37,7 @@ const char *PROPERTY_SENSITIVE_POS      = "pos";
 const char *PROPERTY_SENSITIVE_NEG      = "neg";
 const char *PROPERTY_TASK_NOT_AUTOMATIC = "PROPERTY_TASK_NOT_AUTOMATIC";
 const char *PROPERTY_GENVAR             = "PROPERTY_GENVAR";
+const char *PROPERTY_PROCESS_LOOP_TAIL  = "PROPERTY_PROCESS_LOOP_TAIL";
 
 /////////////////////////////////////////////////////////////////
 // Functions.

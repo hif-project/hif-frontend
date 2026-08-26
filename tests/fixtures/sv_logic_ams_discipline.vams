@@ -1,0 +1,15 @@
+// Verilog-AMS guard for the SystemVerilog `logic` fix.
+//
+// In Verilog-AMS `logic` is a *discipline*, not the SystemVerilog four-state
+// type, and it must keep resolving to the `ams_logic` typedef of the
+// vams_disciplines standard library. The fallback that gives `logic` its
+// SystemVerilog meaning must therefore fire only when that library is absent,
+// which is what this fixture pins down: an .vams input loads the disciplines
+// library, so `ams_logic` resolves and the fallback must not be reached.
+module sv_logic_ams_discipline(a, b);
+  input a;
+  output b;
+  logic a;
+  logic b;
+  electrical e;
+endmodule
