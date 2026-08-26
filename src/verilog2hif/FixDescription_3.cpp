@@ -321,6 +321,141 @@ void prerefineFixes(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
 }
 
 // /////////////////////////////////////////////////////////////////////////////
+// _expandForGenerates
+// /////////////////////////////////////////////////////////////////////////////
+
+/// @brief True when the loop's index advances by exactly one per iteration.
+///
+/// Expansion substitutes the iteration *ordinal* for the genvar rather than the
+/// value the genvar actually takes, so a loop stepping by 2 over 0..4 elaborates
+/// as 0, 1, 2 - a different design, at exit 0, with no diagnostic anywhere
+/// (hif-core#24). The two agree only when the step is one.
+///
+/// So anything this cannot positively identify as a unit step is left
+/// unexpanded. That keeps the loud abort those designs already produce, which is
+/// the better of the two failures. The test is deliberately narrow rather than
+/// clever: `g = g + 1` and `g = g - 1` are the forms a Verilog generate loop
+/// takes, and a shape not recognised here is skipped, never mis-expanded.
+auto hasUnitStep(ForGenerate *o) -> bool
+{
+    if (o->initDeclarations.size() != 1 || o->stepActions.size() != 1) {
+        return false;
+    }
+
+    DataDeclaration *index = o->initDeclarations.front();
+    auto *step             = dynamic_cast<Assign *>(o->stepActions.front());
+    if (step == nullptr) {
+        return false;
+    }
+
+    auto *target = dynamic_cast<Identifier *>(step->getLeftHandSide());
+    if (target == nullptr || target->getName() != index->getName()) {
+        return false;
+    }
+
+    auto *expr = dynamic_cast<Expression *>(step->getRightHandSide());
+    if (expr == nullptr) {
+        return false;
+    }
+    if (expr->getOperator() != op_plus && expr->getOperator() != op_minus) {
+        return false;
+    }
+
+    auto *operand = dynamic_cast<Identifier *>(expr->getValue1());
+    auto *amount  = dynamic_cast<IntValue *>(expr->getValue2());
+    if (operand == nullptr || operand->getName() != index->getName() || amount == nullptr) {
+        return false;
+    }
+
+    return amount->getValue() == 1;
+}
+
+/// @brief Replicates every `for generate` in place, one copy per iteration.
+///
+/// Everything after this point in step 3 - splitLogicConesLoops,
+/// generateConeFunctions, addConesPCalls - assumes that a continuous assignment
+/// is valid in the scope of the declaration it drives. A ForGenerate breaks that
+/// assumption: generateConeFunctions places the cone beside the driven
+/// declaration and fills it with copies of the driver assignments, so a driver
+/// living inside the loop is copied out of the loop, taking its references to
+/// loop-scoped names with it. Those are the genvar, and - since hif-frontend#23
+/// declared it there - the split signal. Neither resolves where the cone lands,
+/// and standardization aborts with "Declaration not found" naming the cone.
+///
+/// The cone cannot follow the assignment into the loop instead: its callers are
+/// the readers of the driven declaration, which sit at module scope, so
+/// addConesPCalls would emit a call that does not resolve. Passing the genvar as
+/// a cone parameter does not work either, because a module-scope reader has no
+/// index to pass and needs every iteration run. Expanding the loop is what
+/// removes the mismatch rather than moving it.
+///
+/// Only ForGenerate is expanded. An IfGenerate is left alone: it is not
+/// replicated and declares no index, so it produces neither loop-scoped name,
+/// and expanding it would change output for designs that have a different
+/// defect behind them (hif-frontend#32, hif-backend#86).
+/// @return True when at least one loop was expanded, so the caller knows the
+///         reference map and types need rebuilding.
+auto expandForGenerates(System *system, hif::semantics::ILanguageSemantics *sem, bool preserveStructure) -> bool
+{
+    // Expansion is only safe once instances have been specialized, and
+    // partialFlattening - which is what specializes them - does nothing under
+    // preserveStructure. Expanding anyway would resolve a parameterized loop
+    // bound against the module's *default*: a leaf declaring `parameter N = 2`
+    // and instantiated as `#(.N(4))` elaborates two iterations instead of four,
+    // at exit 0. Measured, not assumed.
+    //
+    // So under -s the ForGenerate is left standing, which is also what the flag
+    // asks for, and a design that needs a cone across it keeps the abort it
+    // already has today. That is the same trade as the unit-step test below:
+    // a loud failure in preference to a silently different design.
+    if (preserveStructure) {
+        return false;
+    }
+
+    using Query = hif::HifTypedQuery<ForGenerate>;
+    Query query;
+    query.skipStandardScopes = true;
+    Query::Results generates;
+    hif::search(generates, system, query);
+
+    // Only the outermost loops. Expanding one replicates its body, and the
+    // replication visits the copy, so a nested loop is expanded as part of its
+    // parent - and the pointer collected for it above refers to a node that no
+    // longer exists by then. The whole set is collected before anything is
+    // expanded, so this test never inspects a freed node.
+    std::vector<ForGenerate *> outermost;
+    for (auto *generate : generates) {
+        if (hif::getNearestParent<ForGenerate>(generate) != nullptr) {
+            continue;
+        }
+        if (!hasUnitStep(generate)) {
+            continue;
+        }
+        outermost.push_back(generate);
+    }
+
+    // simplify_constants and simplify_template_parameters are deliberately left
+    // off. _simplifyForGenerate turns both on for itself while it resolves the
+    // loop bound and restores them afterwards, so the bound is still folded;
+    // turning them on here instead would fold them across the whole design and
+    // strip the parameterisation the translation is meant to keep - measured on
+    // the clog2_replication test, where DEPTH stopped being referenced at all.
+    hif::manipulation::SimplifyOptions opt;
+    opt.simplify_generates = true;
+
+    for (auto *generate : outermost) {
+        // Deliberately the Object* overload. Expanding the loop deletes the
+        // ForGenerate, and simplify() returns that freed pointer; the
+        // simplify<T>() template then dynamic_casts it, which is a read of
+        // freed memory and segfaults here. Casting at the call site picks the
+        // overload that hands back an Object* nobody dereferences. hif-core#23.
+        hif::manipulation::simplify(static_cast<Object *>(generate), sem, opt);
+    }
+
+    return !outermost.empty();
+}
+
+// /////////////////////////////////////////////////////////////////////////////
 // _splitLogicConesLoops
 // /////////////////////////////////////////////////////////////////////////////
 
@@ -1829,6 +1964,18 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     hif::writeFile("FIX3_2_after_partial_flattening", o, true);
     hif::writeFile("FIX3_2_after_partial_flattening", o, false);
 #endif
+
+    // ///////////////////////////////////////////////////////////////////
+    // Expanding for generates
+    // ///////////////////////////////////////////////////////////////////
+    // After partial flattening, which is what specializes parameterized
+    // instances, and before the logic-cone passes, which cannot represent a
+    // driver that lives in a scope the cone does not.
+    if (expandForGenerates(o, sem, preserveStructure)) {
+        refMap.clear();
+        hif::semantics::getAllReferences(refMap, sem, o, opt);
+        hif::semantics::typeTree(o, sem);
+    }
 
     // ///////////////////////////////////////////////////////////////////
     // Pre refinements
