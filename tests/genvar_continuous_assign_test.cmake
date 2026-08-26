@@ -15,22 +15,31 @@
 #           left the genvar's scope, and standardization aborted on the
 #           reference at "STD 01: Simplifying source tree".
 #
-#           Exit 0 is not a sufficient check, and the structural assertion below
-#           is the point. What makes the reference resolve is *where* the split
-#           declaration ends up: inside the ForGenerate, which is the same scope
-#           the genvar is declared in. A future change that put it back at
-#           module scope but happened to silence the abort some other way would
-#           still be wrong - and would also reintroduce the second problem,
-#           which produces no diagnostic at all: one signal outside the loop is
-#           shared by every iteration, so all of them drive the same net.
+#           REWRITTEN for hif-frontend#30. This test used to assert that the
+#           split declaration and its cone landed *inside* the `<FORGENERATE>`
+#           element, and it deliberately refused to pass if the loop was ever
+#           unrolled earlier - saying it needed rewriting rather than deleting.
+#           #30 is that change: `for generate` loops are now expanded before the
+#           logic-cone passes, because the same scope mismatch also reaches a
+#           cone that has to stay at module scope, where moving the declaration
+#           cannot fix it.
 #
-#           No round-trip leg. The regenerated design cannot be checked, because
-#           neither backend handles a ForGenerate: hif2verilog emits invalid
-#           Verilog and hif2vhdl silently drops the loop (hif-backend#78). That
-#           is pre-existing and independent - the procedural form of this same
-#           loop, which has always translated at exit 0, regenerates identically
-#           broken before and after this fix. This test therefore stops where
-#           this repository's responsibility does.
+#           The position check is therefore gone, but the property it stood for
+#           is not, and it is now checked directly instead of by proxy. What
+#           made #23 dangerous was never the declaration's offset in the file:
+#           it was that ONE split signal outside the loop is shared by EVERY
+#           iteration, so all of them drive the same net - a defect with no
+#           diagnostic at all. After expansion that is visible as a count. Two
+#           iterations must produce two distinct split signals. One would be the
+#           shared-net bug, back again.
+#
+#           The genvar assertion is the other half, and it is what #23's abort
+#           was actually about: no reference to the loop index may survive,
+#           because a copy of the assignment ends up in a procedure at module
+#           scope where `g` has no declaration.
+#
+#           No round-trip leg. The regenerated design still cannot be checked
+#           against a simulator here, and that is unchanged by #30.
 # @author : Enrico Fraccaroli
 # -----------------------------------------------------------------------------
 
@@ -63,47 +72,55 @@ endif()
 
 file(READ ${HIF_FILE} hif_content)
 
-# The loop has to still be a loop. If a future change unrolls it before this
-# point the rest of this test is meaningless rather than failing, so say so.
-string(FIND "${hif_content}" "<FORGENERATE" fg_begin)
-if(fg_begin EQUAL -1)
+# The loop must have been expanded. If a future change stops expanding it, the
+# two assertions below stop meaning what they say - two signals would then be
+# two *tokens* of one loop body rather than two iterations - so fail loudly here
+# instead of passing on a coincidence.
+string(FIND "${hif_content}" "<FORGENERATE" fg_at)
+if(NOT fg_at EQUAL -1)
     message(FATAL_ERROR
-        "The translation contains no ForGenerate, so this test is no longer exercising the scope "
-        "question it is about (hif-frontend#23). If unrolling now happens earlier, this test needs "
-        "rewriting rather than deleting.")
+        "The translation still contains a ForGenerate. hif-frontend#30 expands `for generate` "
+        "before the logic-cone passes, and the per-iteration assertions below depend on that "
+        "having happened. If expansion was deliberately removed, this test needs rewriting "
+        "rather than deleting.")
 endif()
 
-string(FIND "${hif_content}" "</FORGENERATE>" fg_end)
-if(fg_end EQUAL -1)
-    message(FATAL_ERROR "Malformed HIF: a <FORGENERATE> with no closing tag.")
+# No reference to the loop index may survive expansion. This is the #23 abort
+# itself: generateConeFunctions copies the assignment into a procedure at module
+# scope, and a surviving `g` there has no declaration.
+if(hif_content MATCHES "<IDENTIFIER[^>]*name=\"g\"")
+    message(FATAL_ERROR
+        "A reference to the genvar `g` survives in the translated design. A copy of the "
+        "assignment is placed in a procedure at module scope, where `g` is not declared, and "
+        "standardization aborts on it (hif-frontend#23).\nFull content:\n${hif_content}")
 endif()
 
-# The split declaration and its cone must be inside the loop, because that is
-# the scope the genvar is declared in. Position comparison rather than a regex:
-# the fixture has exactly one ForGenerate, so "between the tags" is exact, and
-# CMake has no non-greedy match to carve the element out with.
-string(FIND "${hif_content}" "hif_cone_y_partial" cone_at)
-if(cone_at EQUAL -1)
+# One split signal per iteration. The fixture's loop runs twice, so exactly two
+# must exist: a single shared one is the silent half of #23, where every
+# iteration of the unrolled loop drives the same net.
+string(REGEX MATCHALL "name=\"y_partial[0-9_]+\"" partial_names "${hif_content}")
+if(NOT partial_names)
     message(FATAL_ERROR
-        "No cone procedure was generated for the split bit-select target, so the code path this "
-        "test covers did not run (hif-frontend#23).\nFull content:\n${hif_content}")
+        "No split signal was generated for the bit-select target, so the code path this test "
+        "covers did not run (hif-frontend#23).\nFull content:\n${hif_content}")
+endif()
+list(REMOVE_DUPLICATES partial_names)
+list(LENGTH partial_names partial_count)
+if(NOT partial_count EQUAL 2)
+    message(FATAL_ERROR
+        "Expected 2 distinct split signals, one per iteration of the expanded loop, but found "
+        "${partial_count}: ${partial_names}. One shared signal means every iteration drives the "
+        "same net - the half of hif-frontend#23 that produces no diagnostic.")
 endif()
 
-if(cone_at LESS fg_begin OR cone_at GREATER fg_end)
+# Each iteration must also get its own cone, for the same reason.
+string(REGEX MATCHALL "name=\"hif_cone_y_partial[0-9_]+\"" cone_names "${hif_content}")
+list(REMOVE_DUPLICATES cone_names)
+list(LENGTH cone_names cone_count)
+if(NOT cone_count EQUAL 2)
     message(FATAL_ERROR
-        "The cone procedure for the split target is declared outside the ForGenerate (at offset "
-        "${cone_at}, loop spans ${fg_begin}..${fg_end}). Its body copies an assignment that reads "
-        "the genvar, so at module scope that reference has no declaration and standardization "
-        "aborts - and one signal outside the loop would additionally be shared by every iteration "
-        "(hif-frontend#23).")
-endif()
-
-string(FIND "${hif_content}" "y_partial" partial_at)
-if(partial_at LESS fg_begin OR partial_at GREATER fg_end)
-    message(FATAL_ERROR
-        "The split signal for the bit-select target is declared outside the ForGenerate (at offset "
-        "${partial_at}, loop spans ${fg_begin}..${fg_end}), so every iteration of the unrolled loop "
-        "would drive the same net (hif-frontend#23).")
+        "Expected 2 distinct cone procedures, one per split signal, but found ${cone_count}: "
+        "${cone_names} (hif-frontend#23).")
 endif()
 
 message(STATUS "genvar_continuous_assign test passed.")

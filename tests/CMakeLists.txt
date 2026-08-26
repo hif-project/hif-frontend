@@ -194,9 +194,10 @@ add_test(
 #
 # Driven by a script rather than being a bare exit-0 run: what makes the
 # reference resolve is *where* the split declaration lands, and a change that
-# silenced the abort while putting it back at module scope would also
-# reintroduce the silent half - one signal shared by every iteration of the
-# unrolled loop.
+# silenced the abort while leaving both iterations sharing one signal would also
+# reintroduce the silent half. Since hif-frontend#30 the loop is expanded before
+# the logic-cone passes, so the test counts one split signal per iteration
+# instead of checking where the declaration sits.
 add_test(
     NAME genvar_continuous_assign
     COMMAND ${CMAKE_COMMAND}
@@ -204,6 +205,35 @@ add_test(
         -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign.v
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_continuous_assign_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_continuous_assign_test.cmake
+)
+
+# Regression (hif-frontend#30): a net driven by a continuous assignment inside a
+# `for generate` and read from outside the loop aborted the tool, naming the cone
+# for the net itself rather than for a split signal. That cone must stay at module
+# scope because the reading process is there, so #23's remedy - moving the
+# declaration into the loop - cannot apply, and the loop is expanded instead.
+#
+# Asserts the structure, not just exit 0: the cone exists and is called, no
+# reference to the genvar survives, and each iteration has its own split signal.
+add_test(
+    NAME genvar_cone_reader
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_cone_reader.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_cone_reader_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_cone_reader_test.cmake
+)
+
+# Control for hif-frontend#30: a loop whose index does not advance by one must be
+# left unexpanded, because expansion substitutes the iteration ordinal for the
+# genvar and would silently change which bits the design drives (hif-core#24).
+add_test(
+    NAME genvar_nonunit_step
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_nonunit_step.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/genvar_nonunit_step_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/genvar_nonunit_step_test.cmake
 )
 
 # The forms of `generate` that already worked, kept as a separate test so that

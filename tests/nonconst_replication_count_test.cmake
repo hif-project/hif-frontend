@@ -124,10 +124,16 @@ endif()
 # hif::Variable at the point the check runs, so without its explicit exemption
 # it would be reported as reading a variable.
 #
-# The fixture does not translate, for the unrelated reason recorded in
-# hif-frontend#23, so exit 0 cannot be required here. What is required is that
-# the failure is not *this* check's - which is exactly what the exemption buys.
-# When #23 is fixed, tighten this to require_accepted().
+# This case used to accept a non-zero exit, because the fixture aborted for the
+# unrelated reason recorded in hif-frontend#23, and it said to tighten it to
+# require_accepted() once that stopped. hif-frontend#30 is when it stopped: the
+# `for generate` is now expanded before the logic-cone passes, so the cone no
+# longer copies a genvar reference out of the loop. Tightened accordingly - a
+# regression to the abort now fails here instead of printing a status line.
+#
+# The count check itself is still asserted separately below, because exit 0
+# alone would not distinguish "the exemption works" from "the tool stopped
+# reaching the check".
 # --------------------------------------------------------------------------
 run(genvar_replication_count genvar_result genvar_output)
 if(genvar_output MATCHES "Replication count is not a constant expression")
@@ -136,10 +142,14 @@ if(genvar_output MATCHES "Replication count is not a constant expression")
         "generate loop, so `{g{1'b1}}` is legal and the exemption in _checkReplicationCount is "
         "missing or ineffective.\nOutput:\n${genvar_output}")
 endif()
-if(genvar_result EQUAL 0)
-    message(STATUS
-        "genvar_replication_count now translates - hif-frontend#23 appears fixed. Tighten this case "
-        "to require_accepted().")
+if(NOT genvar_result EQUAL 0)
+    message(FATAL_ERROR
+        "verilog2hif refused genvar_replication_count.v with exit code ${genvar_result}. It aborted "
+        "here until hif-frontend#30 expanded the `for generate` before the logic-cone passes; a "
+        "return to that abort is a regression, not the expected state.\nOutput:\n${genvar_output}")
+endif()
+if(NOT EXISTS ${WORK_DIR}/genvar_replication_count.hif.xml)
+    message(FATAL_ERROR "Expected HIF file not produced: ${WORK_DIR}/genvar_replication_count.hif.xml")
 endif()
 
 message(STATUS "nonconst_replication_count test passed.")
