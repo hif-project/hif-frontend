@@ -324,52 +324,6 @@ void prerefineFixes(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
 // _expandForGenerates
 // /////////////////////////////////////////////////////////////////////////////
 
-/// @brief True when the loop's index advances by exactly one per iteration.
-///
-/// Expansion substitutes the iteration *ordinal* for the genvar rather than the
-/// value the genvar actually takes, so a loop stepping by 2 over 0..4 elaborates
-/// as 0, 1, 2 - a different design, at exit 0, with no diagnostic anywhere
-/// (hif-core#24). The two agree only when the step is one.
-///
-/// So anything this cannot positively identify as a unit step is left
-/// unexpanded. That keeps the loud abort those designs already produce, which is
-/// the better of the two failures. The test is deliberately narrow rather than
-/// clever: `g = g + 1` and `g = g - 1` are the forms a Verilog generate loop
-/// takes, and a shape not recognised here is skipped, never mis-expanded.
-auto hasUnitStep(ForGenerate *o) -> bool
-{
-    if (o->initDeclarations.size() != 1 || o->stepActions.size() != 1) {
-        return false;
-    }
-
-    DataDeclaration *index = o->initDeclarations.front();
-    auto *step             = dynamic_cast<Assign *>(o->stepActions.front());
-    if (step == nullptr) {
-        return false;
-    }
-
-    auto *target = dynamic_cast<Identifier *>(step->getLeftHandSide());
-    if (target == nullptr || target->getName() != index->getName()) {
-        return false;
-    }
-
-    auto *expr = dynamic_cast<Expression *>(step->getRightHandSide());
-    if (expr == nullptr) {
-        return false;
-    }
-    if (expr->getOperator() != op_plus && expr->getOperator() != op_minus) {
-        return false;
-    }
-
-    auto *operand = dynamic_cast<Identifier *>(expr->getValue1());
-    auto *amount  = dynamic_cast<IntValue *>(expr->getValue2());
-    if (operand == nullptr || operand->getName() != index->getName() || amount == nullptr) {
-        return false;
-    }
-
-    return amount->getValue() == 1;
-}
-
 /// @brief Replicates every `for generate` in place, one copy per iteration.
 ///
 /// Everything after this point in step 3 - splitLogicConesLoops,
@@ -426,9 +380,6 @@ auto expandForGenerates(System *system, hif::semantics::ILanguageSemantics *sem,
     std::vector<ForGenerate *> outermost;
     for (auto *generate : generates) {
         if (hif::getNearestParent<ForGenerate>(generate) != nullptr) {
-            continue;
-        }
-        if (!hasUnitStep(generate)) {
             continue;
         }
         outermost.push_back(generate);
