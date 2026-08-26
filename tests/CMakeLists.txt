@@ -298,3 +298,23 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/if_generate_dead_branch_instance_test.cmake
 )
 set_tests_properties(if_generate_dead_branch_instance PROPERTIES TIMEOUT 60)
+
+# Regression (hif-frontend#27): a shorthand parameter in an ANSI function header
+# - `function f(input p, q);` - was built and never pushed onto the port list,
+# so it vanished. task_port_list's equivalent production does push
+# (hif-frontend#25), which is why the fixture carries the task spelling as a
+# control: the two had silently diverged.
+#
+# Driven by a script rather than a bare exit-0 run because the defect is only
+# half loud. A called function aborts in hif-core's declaration lookup, which
+# exit status catches; an uncalled one translates at exit 0 with the wrong
+# signature, which it does not. The parameters are counted for that reason, and
+# the inherited type is checked separately from the inherited direction.
+add_test(
+    NAME function_shorthand_parameter
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/function_shorthand_parameter.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/function_shorthand_parameter_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/function_shorthand_parameter_test.cmake
+)
