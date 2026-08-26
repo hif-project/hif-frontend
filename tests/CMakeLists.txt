@@ -216,3 +216,21 @@ add_test(
     COMMAND $<TARGET_FILE:verilog2hif> -o ${P0_TEST_WORK_DIR}/genvar_generate_controls
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/genvar_continuous_assign_controls.v
 )
+
+# Regression (hif-muffin#24): the write-back assignment splitLogicConesLoops
+# synthesizes for a part-select continuous assign carried no source
+# attribution, so two fault locations on one signal produced fault records
+# identical in every field but `id`.
+#
+# Driven by a script rather than being a bare exit-0 run: the defect never
+# affected exit status. The assertion that discriminates is that each source
+# line accounts for two attributed assignments - the cone and its write-back -
+# because before the fix each accounted for one.
+add_test(
+    NAME cone_writeback_code_info
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cone_writeback_code_info.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/cone_writeback_code_info_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cone_writeback_code_info_test.cmake
+)

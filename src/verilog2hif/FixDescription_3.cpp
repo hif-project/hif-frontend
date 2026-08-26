@@ -421,6 +421,38 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
             RefSet &refSet        = refMap[decl];
             std::string tokenName = tokenNames[token];
 
+            // The statement being split. The write-back generated below stands
+            // for part of it and is attributed to it: without that, a signal
+            // with more than one of these locations offers nothing to tell them
+            // apart, because the position was the only field that differed
+            // (hif-muffin#24).
+            //
+            // The token is the assign's left-hand side and is never detached
+            // before the write-back is inserted, so its parent is that assign;
+            // the insertion below already depends on it being an object in a
+            // BList. Asserting says so rather than leaving it implied.
+            auto *sourceAssign = dynamic_cast<Assign *>(token->getParent());
+            messageAssert(sourceAssign != nullptr, "Expected the token's parent to be its Assign", token, sem);
+
+            // The statement's position, not the token's. They usually share a
+            // line, but an assignment spanning several lines gives its target a
+            // position inside itself rather than the position of the statement,
+            // and it is the statement the write-back stands for.
+            //
+            // Deliberately no fallback to the token when this is empty. It is
+            // empty for a concatenation target, whose provenance is lost before
+            // this transformation runs - and rebuilding it from a child here
+            // would hide that upstream loss while fixing none of it, since
+            // every other node that shape produces is unattributed too. That is
+            // hif-frontend#37.
+            //
+            // The split declaration is deliberately not attributed: a later
+            // refinement in this same file rebuilds signals as variables with
+            // only name, type and value carried over (see "Refine to variable"),
+            // so any code info set here is discarded before output. Also
+            // hif-frontend#37.
+            const Object::CodeInfo &origin = sourceAssign->getCodeInfo();
+
             // 1
             auto *sig = new Signal();
             // The split signal normally belongs beside the declaration whose
@@ -466,7 +498,8 @@ void splitLogicConesLoops(System *system, RefMap &refMap, hif::semantics::ILangu
             auto *ass = new Assign();
             ass->setLeftHandSide(hif::copy(token));
             ass->setRightHandSide(new Identifier(tokenName));
-            BList<Object>::iterator jt(token->getParent());
+            ass->setCodeInfo(origin);
+            BList<Object>::iterator jt(sourceAssign);
             jt.insert_after(ass);
 
             // 3
