@@ -9,7 +9,9 @@ on:
 jobs:
   build:
     name: Build and Test
-    runs-on: ubuntu-latest
+    # Runs on the lab's self-hosted runners when the CI_RUNS_ON variable is set (JSON list of labels)
+    # and the run does not come from a fork; otherwise on GitHub-hosted runners.
+    runs-on: ${{ fromJSON(github.event.pull_request.head.repo.fork != true && vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     strategy:
       fail-fast: false
       matrix:
