@@ -60,3 +60,12 @@ module parameter_index #(parameter K = 1) (input ae, input be, input a, input b,
   assign bs[2] = b;
   assign bs[3] = a & b;
 endmodule
+
+// A bit select past the end of the net writes nothing. Bit 3 is never driven, and the
+// out-of-range y[9] must not be counted as covering it.
+module out_of_range_driver(input [3:0] a, output [3:0] y);
+  assign y[0] = a[0];
+  assign y[1] = a[1];
+  assign y[2] = a[2];
+  assign y[9] = a[3];
+endmodule

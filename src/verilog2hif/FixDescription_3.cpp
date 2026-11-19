@@ -91,7 +91,8 @@ auto constantValue(Value *value, hif::semantics::ILanguageSemantics *sem, std::i
         return true;
     }
     if (auto *bits = dynamic_cast<BitvectorValue *>(value)) {
-        if (!bits->is01()) {
+        // Wider than a 64-bit integer holds is not an index.
+        if (!bits->is01() || bits->getValue().size() > 62) {
             return false;
         }
         result = static_cast<std::int64_t>(bits->getValueAsUnsigned());
@@ -200,17 +201,45 @@ auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use, hif::semanti
         return true;
     }
 
+    // The net's own bounds, when constants give them.
+    bool haveDeclared             = false;
+    std::int64_t declaredLow      = 0;
+    std::int64_t declaredHigh     = 0;
+    auto *declType                = decl->getType();
+    auto *spanned                 = dynamic_cast<hif::features::ITypeSpan *>(declType);
+    const bool isVector           = dynamic_cast<Bitvector *>(declType) != nullptr;
+    if (isVector && spanned != nullptr && spanned->getSpan() != nullptr) {
+        std::int64_t declaredLeft  = 0;
+        std::int64_t declaredRight = 0;
+        if (constantValue(spanned->getSpan()->getLeftBound(), sem, declaredLeft) &&
+            constantValue(spanned->getSpan()->getRightBound(), sem, declaredRight)) {
+            haveDeclared = true;
+            declaredLow  = std::min(declaredLeft, declaredRight);
+            declaredHigh = std::max(declaredLeft, declaredRight);
+        }
+    }
+
     std::vector<DriverRange> ranges;
     std::vector<Assign *> assigns;
     for (auto *driver : use.continuousDrivers) {
-        ranges.push_back(getDriverRange(driver, sem));
+        DriverRange range = getDriverRange(driver, sem);
+        // A bit that is not in the net is not driven by anything: `y[9]` on a [3:0] writes
+        // nothing, so it neither overlaps another driver nor covers a bit. An empty range has
+        // low above high.
+        if (range.known && !range.whole && haveDeclared) {
+            range.low  = std::max(range.low, declaredLow);
+            range.high = std::min(range.high, declaredHigh);
+        }
+        ranges.push_back(range);
         assigns.push_back(hif::getNearestParent<Assign>(driver));
     }
+    auto isEmpty = [](const DriverRange &range) { return range.known && !range.whole && range.low > range.high; };
 
     // Two distinct assigns that write the same bit.
     for (std::size_t i = 0; i < ranges.size(); ++i) {
         for (std::size_t j = i + 1; j < ranges.size(); ++j) {
-            if (assigns[i] == assigns[j] || !ranges[i].known || !ranges[j].known) {
+            if (assigns[i] == assigns[j] || !ranges[i].known || !ranges[j].known || isEmpty(ranges[i]) ||
+                isEmpty(ranges[j])) {
                 continue;
             }
             if (ranges[i].whole || ranges[j].whole) {
@@ -222,33 +251,31 @@ auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use, hif::semanti
         }
     }
 
-    // Bits nothing drives. Needs every driver known and the net's own bounds.
-    auto *declType = decl->getType();
-    auto *spanned  = dynamic_cast<hif::features::ITypeSpan *>(declType);
-    if (dynamic_cast<Bitvector *>(declType) == nullptr || spanned == nullptr || spanned->getSpan() == nullptr) {
+    // Bits nothing drives. Needs every driver known and the net's own bounds. The bits are
+    // counted by merging intervals, not one by one: a net can be tens of millions of bits wide.
+    if (!haveDeclared) {
         return false;
     }
-    std::int64_t declaredLeft  = 0;
-    std::int64_t declaredRight = 0;
-    if (!constantValue(spanned->getSpan()->getLeftBound(), sem, declaredLeft) ||
-        !constantValue(spanned->getSpan()->getRightBound(), sem, declaredRight)) {
-        return false;
-    }
-    const std::int64_t low  = std::min(declaredLeft, declaredRight);
-    const std::int64_t high = std::max(declaredLeft, declaredRight);
-    std::set<std::int64_t> driven;
+    std::vector<std::pair<std::int64_t, std::int64_t>> intervals;
     for (const auto &range : ranges) {
-        if (!range.known) {
+        if (!range.known || range.whole) {
             return false;
         }
-        if (range.whole) {
-            return false;
-        }
-        for (std::int64_t bit = range.low; bit <= range.high; ++bit) {
-            driven.insert(bit);
+        if (!isEmpty(range)) {
+            intervals.emplace_back(range.low, range.high);
         }
     }
-    return static_cast<std::int64_t>(driven.size()) < (high - low + 1);
+    std::sort(intervals.begin(), intervals.end());
+    std::int64_t driven     = 0;
+    std::int64_t coveredTo  = declaredLow - 1;
+    for (const auto &interval : intervals) {
+        const std::int64_t from = std::max(interval.first, coveredTo + 1);
+        if (interval.second >= from) {
+            driven += interval.second - from + 1;
+            coveredTo = interval.second;
+        }
+    }
+    return driven < (declaredHigh - declaredLow + 1);
 }
 
 // ///////////////////////////////////////////////////////////////////
