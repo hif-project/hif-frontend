@@ -72,6 +72,43 @@ auto skipStandardFunctionCall(Object *o, const hif::HifQueryBase *q) -> bool
 // Net semantics kept by continuous assigns
 // ///////////////////////////////////////////////////////////////////
 
+/// @brief The value of an index or a bound when a constant says it.
+/// @details An integer, a bit string (a for generate leaves its index as one once expanded), or
+///          a name whose declaration holds one: a parameter or a localparam. Casts around any of
+///          them are looked through. A parameter an instance overrides may hold another value than
+///          its default, and then this is wrong; the only thing decided from it is whether to keep a
+///          net's assigns as they are, which never changes what the design computes.
+auto constantValue(Value *value, hif::semantics::ILanguageSemantics *sem, std::int64_t &result, int depth = 0) -> bool
+{
+    if (value == nullptr || depth > 8) {
+        return false;
+    }
+    if (auto *cast = dynamic_cast<Cast *>(value)) {
+        return constantValue(cast->getValue(), sem, result, depth + 1);
+    }
+    if (auto *integer = dynamic_cast<IntValue *>(value)) {
+        result = integer->getValue();
+        return true;
+    }
+    if (auto *bits = dynamic_cast<BitvectorValue *>(value)) {
+        if (!bits->is01()) {
+            return false;
+        }
+        result = static_cast<std::int64_t>(bits->getValueAsUnsigned());
+        return true;
+    }
+    if (auto *identifier = dynamic_cast<Identifier *>(value)) {
+        auto *declaration = hif::semantics::getDeclaration(identifier, sem);
+        if (auto *constant = dynamic_cast<Const *>(declaration)) {
+            return constantValue(constant->getValue(), sem, result, depth + 1);
+        }
+        if (auto *parameter = dynamic_cast<ValueTP *>(declaration)) {
+            return constantValue(parameter->getValue(), sem, result, depth + 1);
+        }
+    }
+    return false;
+}
+
 /// @brief The part of a net one continuous driver writes, when it is known.
 struct DriverRange {
     bool known{false};
@@ -86,7 +123,7 @@ struct DriverRange {
 ///          or a constant part-select. Anything symbolic, nested or not a plain
 ///          vector is unknown, and unknown is never taken as disjoint or as
 ///          overlapping.
-auto getDriverRange(Object *symb) -> DriverRange
+auto getDriverRange(Object *symb, hif::semantics::ILanguageSemantics *sem) -> DriverRange
 {
     DriverRange range;
     Object *parent = symb->getParent();
@@ -95,26 +132,27 @@ auto getDriverRange(Object *symb) -> DriverRange
         if (member->getPrefix() != symb) {
             return range;
         }
-        auto *index = dynamic_cast<IntValue *>(member->getIndex());
-        if (index == nullptr) {
+        std::int64_t index = 0;
+        if (!constantValue(member->getIndex(), sem, index)) {
             return range;
         }
         range.known = true;
-        range.low = range.high = index->getValue();
+        range.low = range.high = index;
         return range;
     }
     if (auto *slice = dynamic_cast<Slice *>(parent)) {
         if (slice->getPrefix() != symb || slice->getSpan() == nullptr) {
             return range;
         }
-        auto *left  = dynamic_cast<IntValue *>(slice->getSpan()->getLeftBound());
-        auto *right = dynamic_cast<IntValue *>(slice->getSpan()->getRightBound());
-        if (left == nullptr || right == nullptr) {
+        std::int64_t left  = 0;
+        std::int64_t right = 0;
+        if (!constantValue(slice->getSpan()->getLeftBound(), sem, left) ||
+            !constantValue(slice->getSpan()->getRightBound(), sem, right)) {
             return range;
         }
         range.known = true;
-        range.low   = std::min(left->getValue(), right->getValue());
-        range.high  = std::max(left->getValue(), right->getValue());
+        range.low   = std::min(left, right);
+        range.high  = std::max(left, right);
         return range;
     }
     // Anything else wrapping the symbol is not a plain target.
@@ -150,7 +188,7 @@ struct NetUse {
 ///           - they provably leave a bit of the net undriven.
 ///          "Provably" is what constants say. A symbolic or nested target proves
 ///          nothing, and then the net is lowered as it always was.
-auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use) -> bool
+auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use, hif::semantics::ILanguageSemantics *sem) -> bool
 {
     if (use.continuousDrivers.empty() || use.proceduralWrite || use.bound) {
         return false;
@@ -165,7 +203,7 @@ auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use) -> bool
     std::vector<DriverRange> ranges;
     std::vector<Assign *> assigns;
     for (auto *driver : use.continuousDrivers) {
-        ranges.push_back(getDriverRange(driver));
+        ranges.push_back(getDriverRange(driver, sem));
         assigns.push_back(hif::getNearestParent<Assign>(driver));
     }
 
@@ -190,13 +228,14 @@ auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use) -> bool
     if (dynamic_cast<Bitvector *>(declType) == nullptr || spanned == nullptr || spanned->getSpan() == nullptr) {
         return false;
     }
-    auto *left  = dynamic_cast<IntValue *>(spanned->getSpan()->getLeftBound());
-    auto *right = dynamic_cast<IntValue *>(spanned->getSpan()->getRightBound());
-    if (left == nullptr || right == nullptr) {
+    std::int64_t declaredLeft  = 0;
+    std::int64_t declaredRight = 0;
+    if (!constantValue(spanned->getSpan()->getLeftBound(), sem, declaredLeft) ||
+        !constantValue(spanned->getSpan()->getRightBound(), sem, declaredRight)) {
         return false;
     }
-    const std::int64_t low  = std::min(left->getValue(), right->getValue());
-    const std::int64_t high = std::max(left->getValue(), right->getValue());
+    const std::int64_t low  = std::min(declaredLeft, declaredRight);
+    const std::int64_t high = std::max(declaredLeft, declaredRight);
     std::set<std::int64_t> driven;
     for (const auto &range : ranges) {
         if (!range.known) {
@@ -332,7 +371,7 @@ void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
                     use.proceduralWrite = true;
                 }
             }
-            if (shouldKeepContinuous(p, use)) {
+            if (shouldKeepContinuous(p, use, sem)) {
                 continue;
             }
         }
@@ -1052,7 +1091,7 @@ void keepNetSemantics(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem)
         use.bound = !infos.portUsing.empty() || !infos.bindUsing.empty();
         use.read  = !infos.readUsing.empty() || !infos.rhsContinuousUsing.empty() ||
                    !infos.sensitivityUsing.empty() || !infos.waitUsing.empty();
-        if (!shouldKeepContinuous(decl, use)) {
+        if (!shouldKeepContinuous(decl, use, sem)) {
             continue;
         }
 

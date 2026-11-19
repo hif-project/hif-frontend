@@ -40,3 +40,23 @@ module per_bit(input [3:0] a, output [3:0] y);
   assign y[2] = a[1];
   assign y[3] = a[0];
 endmodule
+
+// The same partial drive, written as a for generate: once expanded the index is a bit
+// string, not an integer (hif-backend#104).
+module partial_generate(input [3:0] a, output [3:0] y);
+  genvar g;
+  generate
+    for (g = 0; g < 3; g = g + 1) begin : gg
+      assign y[g] = a[g];
+    end
+  endgenerate
+endmodule
+
+// A parameter as an index: bit K, which is 1, is driven twice (hif-backend#88).
+module parameter_index #(parameter K = 1) (input ae, input be, input a, input b, output [3:0] bs);
+  assign bs[K] = ae ? a : 1'bz;
+  assign bs[1] = be ? b : 1'bz;
+  assign bs[0] = a;
+  assign bs[2] = b;
+  assign bs[3] = a & b;
+endmodule

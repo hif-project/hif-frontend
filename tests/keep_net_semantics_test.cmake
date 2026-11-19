@@ -91,6 +91,12 @@ expect_kept(partial_port 4 0 "A port with undriven bits was lowered, so those bi
 # so it is still lowered to its one process.
 expect_kept(partial_wire 4 1 "A net with undriven bits was lowered, so those bits read x, not z (hif-backend#104).")
 
+# The same shapes with an index that is not an integer literal: a for generate leaves a bit
+# string once expanded, and a parameter is a name (hif-backend#104, #88). Each target is split
+# into a helper net and a rebuilding assign, so three bit drivers are six assigns and five are ten.
+expect_kept(partial_generate 6 0 "A for generate that leaves a bit undriven was lowered, so that bit reads x, not z (hif-backend#104).")
+expect_kept(parameter_index 10 0 "Two drivers of one bit, one indexed by a parameter, were lowered and no longer resolved (hif-backend#88).")
+
 # read_back: the inout's driver is kept, and the reader reads the port. The
 # reader is a process, so one is expected; what must not be there is the
 # `_out_sig` copy of the driver's expression.
