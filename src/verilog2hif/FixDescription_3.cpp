@@ -1514,7 +1514,26 @@ void refineToVariables(
                 if (forParent != nullptr && (ass->getBList() == reinterpret_cast<BList<Object> *>(&forParent->initValues) ||
                                              ass->getBList() == reinterpret_cast<BList<Object> *>(&forParent->stepActions))) {
                     if (forWriteBacks.insert(std::make_pair(forParent, decl)).second) {
-                        BList<Action>::iterator ft(forParent);
+                        // A named block is a do { ... } while (false) the body can
+                        // `disable`, which skips whatever follows the loop inside
+                        // it. Publish after the outermost one around the loop.
+                        Action *anchor = forParent;
+                        for (Object *p = forParent->getParent(); p != nullptr; p = p->getParent()) {
+                            auto *w = dynamic_cast<While *>(p);
+                            if (w == nullptr || !w->isDoWhile()) {
+                                continue;
+                            }
+                            // Still a bit at this point; a bool once simplified.
+                            auto *bitCond  = dynamic_cast<BitValue *>(w->getCondition());
+                            auto *boolCond = dynamic_cast<BoolValue *>(w->getCondition());
+                            const bool isFalse =
+                                (bitCond != nullptr && bitCond->getValue() == hif::bit_zero) ||
+                                (boolCond != nullptr && !boolCond->getValue());
+                            if (isFalse && !w->getName().empty() && w->getName() != NAME_NONE) {
+                                anchor = w;
+                            }
+                        }
+                        BList<Action>::iterator ft(anchor);
                         ft.insert_after(sigAss);
                     } else {
                         delete sigAss;
