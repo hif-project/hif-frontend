@@ -1419,6 +1419,8 @@ void refineToVariables(
     hif::HifFactory f(sem);
     hif::application_utils::WarningList bindWarnings;
     hif::application_utils::WarningList delayWarnings;
+    // (for, declaration) pairs whose write-back was already placed after the loop.
+    std::set<std::pair<For *, DataDeclaration *>> forWriteBacks;
 
     for (auto i = infoMap.begin(); i != infoMap.end(); ++i) {
         DataDeclaration *decl = i->first;
@@ -1503,6 +1505,23 @@ void refineToVariables(
                     delete sigAss;
                     continue;
                 }
+                // An assign in a for header cannot be followed by the write-back:
+                // init and step are lists of actions printed on one line, so the
+                // extra assign would be emitted as a comma expression, which
+                // Verilog does not have (hif-backend#80). The body reads the
+                // shadow already, so publish it once, after the loop.
+                auto *forParent = dynamic_cast<For *>(ass->getParent());
+                if (forParent != nullptr && (ass->getBList() == reinterpret_cast<BList<Object> *>(&forParent->initValues) ||
+                                             ass->getBList() == reinterpret_cast<BList<Object> *>(&forParent->stepActions))) {
+                    if (forWriteBacks.insert(std::make_pair(forParent, decl)).second) {
+                        BList<Action>::iterator ft(forParent);
+                        ft.insert_after(sigAss);
+                    } else {
+                        delete sigAss;
+                    }
+                    continue;
+                }
+
                 BList<Assign>::iterator jt(ass);
                 jt.insert_after(sigAss);
             }
