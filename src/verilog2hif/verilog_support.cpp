@@ -205,6 +205,18 @@ auto getSemanticType(Range *ro, bool is_signed) -> Type *
 //
 //  Parser Output functions
 //
+
+void yyunsupportedParallelBlock()
+{
+    // Not a bare yyerror: that asserts, so a debug build aborts with exit 134 and
+    // no artifact, as if the tool had crashed. This is a construct the tool
+    // knows it does not support (hif-frontend#26), so say so and stop cleanly.
+    (*errorStream) << " -- ERROR: fork/join (a parallel block) is not supported: HIF has no node that runs its "
+                      "branches concurrently (hif-frontend#26).\n"
+                   << "    File: " << yyfilename.c_str() << " At line " << yylineno << ", column " << yycolumno << '\n';
+    exit(1);
+}
+
 #ifdef HALT_ON_UNSUPPORTED_RULES
 void yyerror(char const *msg, Object *o)
 {
