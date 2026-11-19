@@ -338,6 +338,17 @@ add_test(
         -P ${CMAKE_CURRENT_SOURCE_DIR}/task_out_arg_writeback_test.cmake
 )
 
+# hif-backend#88, #89, #104: continuous assigns that carry net semantics are kept,
+# not lowered to processes.
+add_test(
+    NAME keep_net_semantics
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/keep_net_semantics.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/keep_net_semantics_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/keep_net_semantics_test.cmake
+)
+
 # hif-backend#80: the write-back of a shadowed loop index must not land in the
 # for header, where it prints as a comma expression.
 add_test(
