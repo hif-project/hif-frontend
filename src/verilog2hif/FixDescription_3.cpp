@@ -1419,6 +1419,8 @@ void refineToVariables(
     hif::HifFactory f(sem);
     hif::application_utils::WarningList bindWarnings;
     hif::application_utils::WarningList delayWarnings;
+    // (for, declaration) pairs whose write-back was already placed after the loop.
+    std::set<std::pair<For *, DataDeclaration *>> forWriteBacks;
 
     for (auto i = infoMap.begin(); i != infoMap.end(); ++i) {
         DataDeclaration *decl = i->first;
@@ -1503,6 +1505,50 @@ void refineToVariables(
                     delete sigAss;
                     continue;
                 }
+                // An assign in a for header cannot be followed by the write-back:
+                // init and step are lists of actions printed on one line, so the
+                // extra assign would be emitted as a comma expression, which
+                // Verilog does not have (hif-backend#80). The body reads the
+                // shadow already, so publish it once, after the loop.
+                auto *forParent = dynamic_cast<For *>(ass->getParent());
+                auto isHeaderAction = [ass](BList<Action> &list) {
+                    for (auto *action : list) {
+                        if (action == ass) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                if (forParent != nullptr && (isHeaderAction(forParent->initValues) ||
+                                             isHeaderAction(forParent->stepActions))) {
+                    if (forWriteBacks.insert(std::make_pair(forParent, decl)).second) {
+                        // A named block is a do { ... } while (false) the body can
+                        // `disable`, which skips whatever follows the loop inside
+                        // it. Publish after the outermost one around the loop.
+                        Action *anchor = forParent;
+                        for (Object *p = forParent->getParent(); p != nullptr; p = p->getParent()) {
+                            auto *w = dynamic_cast<While *>(p);
+                            if (w == nullptr || !w->isDoWhile()) {
+                                continue;
+                            }
+                            // Still a bit at this point; a bool once simplified.
+                            auto *bitCond  = dynamic_cast<BitValue *>(w->getCondition());
+                            auto *boolCond = dynamic_cast<BoolValue *>(w->getCondition());
+                            const bool isFalse =
+                                (bitCond != nullptr && bitCond->getValue() == hif::bit_zero) ||
+                                (boolCond != nullptr && !boolCond->getValue());
+                            if (isFalse && !w->getName().empty() && w->getName() != NAME_NONE) {
+                                anchor = w;
+                            }
+                        }
+                        BList<Action>::iterator ft(anchor);
+                        ft.insert_after(sigAss);
+                    } else {
+                        delete sigAss;
+                    }
+                    continue;
+                }
+
                 BList<Assign>::iterator jt(ass);
                 jt.insert_after(sigAss);
             }
