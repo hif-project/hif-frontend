@@ -348,3 +348,25 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/fork_join_diagnostic_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/fork_join_diagnostic_test.cmake
 )
+
+# hif-backend#80: the write-back of a shadowed loop index must not land in the
+# for header, where it prints as a comma expression.
+add_test(
+    NAME for_header_writeback
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/for_header_writeback.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/for_header_writeback_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/for_header_writeback_test.cmake
+)
+
+# The write-back of a shadowed loop index goes after the named block around the
+# loop, not inside it where `disable` skips it.
+add_test(
+    NAME for_header_writeback_disable
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/for_header_writeback_disable.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/for_header_writeback_disable_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/for_header_writeback_disable_test.cmake
+)
