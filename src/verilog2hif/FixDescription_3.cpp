@@ -5,8 +5,12 @@
 /// This file is distributed under the BSD 2-Clause License.
 /// See LICENSE.md for details.
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <set>
+#include <vector>
 
 #include <hif/hif.hpp>
 
@@ -62,6 +66,150 @@ auto skipStandardFunctionCall(Object *o, const hif::HifQueryBase *q) -> bool
     }
 
     return !hif::declarationIsPartOfStandard(foo);
+}
+
+// ///////////////////////////////////////////////////////////////////
+// Net semantics kept by continuous assigns
+// ///////////////////////////////////////////////////////////////////
+
+/// @brief The part of a net one continuous driver writes, when it is known.
+struct DriverRange {
+    bool known{false};
+    /// The whole net.
+    bool whole{false};
+    std::int64_t low{0};
+    std::int64_t high{0};
+};
+
+/// @brief Reads the part of a net that the target @p symb writes.
+/// @details Only what a constant says is known: the whole net, one constant bit
+///          or a constant part-select. Anything symbolic, nested or not a plain
+///          vector is unknown, and unknown is never taken as disjoint or as
+///          overlapping.
+auto getDriverRange(Object *symb) -> DriverRange
+{
+    DriverRange range;
+    Object *parent = symb->getParent();
+
+    if (auto *member = dynamic_cast<Member *>(parent)) {
+        if (member->getPrefix() != symb) {
+            return range;
+        }
+        auto *index = dynamic_cast<IntValue *>(member->getIndex());
+        if (index == nullptr) {
+            return range;
+        }
+        range.known = true;
+        range.low = range.high = index->getValue();
+        return range;
+    }
+    if (auto *slice = dynamic_cast<Slice *>(parent)) {
+        if (slice->getPrefix() != symb || slice->getSpan() == nullptr) {
+            return range;
+        }
+        auto *left  = dynamic_cast<IntValue *>(slice->getSpan()->getLeftBound());
+        auto *right = dynamic_cast<IntValue *>(slice->getSpan()->getRightBound());
+        if (left == nullptr || right == nullptr) {
+            return range;
+        }
+        range.known = true;
+        range.low   = std::min(left->getValue(), right->getValue());
+        range.high  = std::max(left->getValue(), right->getValue());
+        return range;
+    }
+    // Anything else wrapping the symbol is not a plain target.
+    if (dynamic_cast<Assign *>(parent) == nullptr) {
+        return range;
+    }
+    range.known = true;
+    range.whole = true;
+    return range;
+}
+
+/// @brief What the frontend knows about how a net is driven and used.
+struct NetUse {
+    /// The targets of its continuous assigns, one symbol each.
+    std::vector<Object *> continuousDrivers;
+    /// Written by a process, or by a task call.
+    bool proceduralWrite{false};
+    /// Connected to an instance port, in either direction.
+    bool bound{false};
+    /// Read by anything: a process, a continuous assign, a sensitivity list, a wait.
+    bool read{false};
+};
+
+/// @brief Whether the continuous assigns of a net must be kept as they are.
+/// @details Lowering a continuous assign to a process or a cone turns the net into
+///          a variable, and loses three things a net has (hif-backend#88, #89, #104):
+///          resolution between drivers, being read as the net instead of as the
+///          driver's expression, and the high impedance of a bit nothing drives.
+///          So they are kept when
+///           - two of them provably write the same bit: the net is resolved;
+///           - the net is an output or inout port that is read: readers must see
+///             the port, which the simulator resolves;
+///           - they provably leave a bit of the net undriven.
+///          "Provably" is what constants say. A symbolic or nested target proves
+///          nothing, and then the net is lowered as it always was.
+auto shouldKeepContinuous(DataDeclaration *decl, const NetUse &use) -> bool
+{
+    if (use.continuousDrivers.empty() || use.proceduralWrite || use.bound) {
+        return false;
+    }
+
+    // An output or inout port that is read: the readers get the port.
+    auto *port = dynamic_cast<Port *>(decl);
+    if (port != nullptr && (port->getDirection() == dir_out || port->getDirection() == dir_inout) && use.read) {
+        return true;
+    }
+
+    std::vector<DriverRange> ranges;
+    std::vector<Assign *> assigns;
+    for (auto *driver : use.continuousDrivers) {
+        ranges.push_back(getDriverRange(driver));
+        assigns.push_back(hif::getNearestParent<Assign>(driver));
+    }
+
+    // Two distinct assigns that write the same bit.
+    for (std::size_t i = 0; i < ranges.size(); ++i) {
+        for (std::size_t j = i + 1; j < ranges.size(); ++j) {
+            if (assigns[i] == assigns[j] || !ranges[i].known || !ranges[j].known) {
+                continue;
+            }
+            if (ranges[i].whole || ranges[j].whole) {
+                return true;
+            }
+            if (ranges[i].low <= ranges[j].high && ranges[j].low <= ranges[i].high) {
+                return true;
+            }
+        }
+    }
+
+    // Bits nothing drives. Needs every driver known and the net's own bounds.
+    auto *declType = decl->getType();
+    auto *spanned  = dynamic_cast<hif::features::ITypeSpan *>(declType);
+    if (dynamic_cast<Bitvector *>(declType) == nullptr || spanned == nullptr || spanned->getSpan() == nullptr) {
+        return false;
+    }
+    auto *left  = dynamic_cast<IntValue *>(spanned->getSpan()->getLeftBound());
+    auto *right = dynamic_cast<IntValue *>(spanned->getSpan()->getRightBound());
+    if (left == nullptr || right == nullptr) {
+        return false;
+    }
+    const std::int64_t low  = std::min(left->getValue(), right->getValue());
+    const std::int64_t high = std::max(left->getValue(), right->getValue());
+    std::set<std::int64_t> driven;
+    for (const auto &range : ranges) {
+        if (!range.known) {
+            return false;
+        }
+        if (range.whole) {
+            return false;
+        }
+        for (std::int64_t bit = range.low; bit <= range.high; ++bit) {
+            driven.insert(bit);
+        }
+    }
+    return static_cast<std::int64_t>(driven.size()) < (high - low + 1);
 }
 
 // ///////////////////////////////////////////////////////////////////
@@ -162,6 +310,31 @@ void fixOutputPorts(Views &topViews, RefMap &refMap, hif::semantics::ILanguageSe
         // as in Verilog.
         if (continuousTargets.empty()) {
             continue;
+        }
+
+        // A port whose continuous assigns carry net semantics is left alone, see
+        // shouldKeepContinuous (hif-backend#88, #89, #104).
+        {
+            NetUse use;
+            use.bound = !portassSet.empty();
+            use.read  = !readRefs.empty();
+            use.proceduralWrite = !nonblockingSet.empty();
+            for (auto *symb : continuousTargets) {
+                if (hif::getNearestParent<GlobalAction>(symb) != nullptr) {
+                    use.continuousDrivers.push_back(symb);
+                } else {
+                    use.proceduralWrite = true;
+                }
+            }
+            for (auto *symb : readRefs) {
+                // A call writing through an out/inout formal is a write.
+                if (hif::getNearestParent<ParameterAssign>(symb) != nullptr) {
+                    use.proceduralWrite = true;
+                }
+            }
+            if (shouldKeepContinuous(p, use)) {
+                continue;
+            }
         }
 
         // Ref designs:
@@ -638,6 +811,10 @@ struct InfoStruct {
 
     bool wasLhsContinuous{false};
 
+    // The continuous assigns driving this net are kept as they are, because
+    // lowering them to processes would lose what makes it a net.
+    bool keepContinuous{false};
+
     auto isOnlyInContinuousAssignments() const -> bool;
 };
 
@@ -674,6 +851,7 @@ InfoStruct::InfoStruct(const InfoStruct &other)
     , readUsing(other.readUsing)
     , lhsCallUsing(other.lhsCallUsing)
     , wasLhsContinuous(other.wasLhsContinuous)
+    , keepContinuous(other.keepContinuous)
 {
     // ntd
 }
@@ -695,6 +873,7 @@ auto InfoStruct::operator=(const InfoStruct &other) -> InfoStruct &
     readUsing           = other.readUsing;
     lhsCallUsing        = other.lhsCallUsing;
     wasLhsContinuous    = other.wasLhsContinuous;
+    keepContinuous      = other.keepContinuous;
 
     return *this;
 }
@@ -746,6 +925,13 @@ void calculateRequiredDeclType(
                !infos.lhsNonBlockingUsing.empty();
 
     isVariable = !infos.lhsContinuousUsing.empty() || !infos.lhsBlockingUsing.empty() || infos.wasLhsContinuous;
+
+    // A net whose continuous assigns are kept is driven by them, not by any
+    // process: it stays what it was, a signal, and is not a variable.
+    if (infos.keepContinuous) {
+        isSignal   = true;
+        isVariable = false;
+    }
 }
 
 /// @brief The formal a symbol's enclosing actual is bound to, when that formal
@@ -842,6 +1028,78 @@ void fillInfoMap(RefMap &refMap, InfoMap &infoMap, bool removeProperty, hif::sem
                 infoMap[decl].readUsing.insert(symb);
             }
         }
+    }
+}
+
+/// @brief Marks the nets whose continuous assigns are kept, and takes them out of
+///        the logic cone machinery, which would lower them to processes.
+/// @details See shouldKeepContinuous. A kept net has no cone, its assigns are not
+///          cleared, and refineToVariables leaves it a signal.
+void keepNetSemantics(InfoMap &infoMap, hif::semantics::ILanguageSemantics *sem)
+{
+    std::set<DataDeclaration *> kept;
+    for (auto &entry : infoMap) {
+        DataDeclaration *decl = entry.first;
+        InfoStruct &infos     = entry.second;
+        if (infos.lhsContinuousUsing.empty()) {
+            continue;
+        }
+
+        NetUse use;
+        use.continuousDrivers.assign(infos.lhsContinuousUsing.begin(), infos.lhsContinuousUsing.end());
+        use.proceduralWrite =
+            !infos.lhsBlockingUsing.empty() || !infos.lhsNonBlockingUsing.empty() || !infos.lhsCallUsing.empty();
+        use.bound = !infos.portUsing.empty() || !infos.bindUsing.empty();
+        use.read  = !infos.readUsing.empty() || !infos.rhsContinuousUsing.empty() ||
+                   !infos.sensitivityUsing.empty() || !infos.waitUsing.empty();
+        if (!shouldKeepContinuous(decl, use)) {
+            continue;
+        }
+
+        kept.insert(decl);
+    }
+
+    // A kept assign is not inlined into anything, so what it reads has to be
+    // there to be read. A net that only continuous assigns drive and read has no
+    // cone: its driver was to be inlined into its reader, and is deleted. If that
+    // reader is kept, the driver is kept with it, and so on up the fan-in.
+    // (For example, a part-select target is split into a helper net per bit,
+    // driven by one assign and read only by the assign that rebuilds the target.)
+    std::vector<DataDeclaration *> pending(kept.begin(), kept.end());
+    while (!pending.empty()) {
+        DataDeclaration *decl = pending.back();
+        pending.pop_back();
+
+        for (auto *driver : infoMap[decl].lhsContinuousUsing) {
+            auto *assign = hif::getNearestParent<Assign>(driver);
+            messageAssert(assign != nullptr, "Cannot find parent assign", driver, sem);
+
+            hif::semantics::SymbolList symbols;
+            hif::semantics::collectSymbols(symbols, assign->getRightHandSide(), sem);
+            for (auto *symbol : symbols) {
+                auto *identifier = dynamic_cast<Identifier *>(symbol);
+                if (identifier == nullptr) {
+                    continue;
+                }
+                auto *source = hif::semantics::getDeclaration(identifier, sem);
+                auto found   = infoMap.find(source);
+                if (source == nullptr || found == infoMap.end() || kept.count(source) != 0) {
+                    continue;
+                }
+                if (found->second.lhsContinuousUsing.empty() || !found->second.isOnlyInContinuousAssignments()) {
+                    continue;
+                }
+                kept.insert(source);
+                pending.push_back(source);
+            }
+        }
+    }
+
+    for (auto *decl : kept) {
+        InfoStruct &infos      = infoMap[decl];
+        infos.keepContinuous   = true;
+        infos.wasLhsContinuous = false;
+        infos.lhsContinuousUsing.clear();
     }
 }
 
@@ -2063,6 +2321,7 @@ void performStep3Refinements(hif::System *o, hif::semantics::ILanguageSemantics 
     // ///////////////////////////////////////////////////////////////////
     InfoMap infoMap;
     fillInfoMap(refMap, infoMap, true, sem);
+    keepNetSemantics(infoMap, sem);
 
     // ///////////////////////////////////////////////////////////////////
     // Fix logic cones
