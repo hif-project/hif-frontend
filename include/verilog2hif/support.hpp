@@ -139,6 +139,12 @@ void yyerror(VerilogParser *, const char *msg);
 /// @param o the object to print.
 void yyerror(const char *msg, hif::Object *o = nullptr);
 
+/// @brief Reports that a fork/join parallel block was found, and exits with status 1.
+/// @details HIF has no node that runs its branches concurrently, so the construct cannot be
+/// represented (hif-frontend#26). Unlike yyerror, this does not assert: a debug build does not
+/// abort with a signal and no message.
+[[noreturn]] void yyunsupportedParallelBlock();
+
 /// @brief A debug function that prints a given message.
 /// @param msg the message to print.
 /// @param o the object to print.

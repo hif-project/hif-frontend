@@ -337,3 +337,14 @@ add_test(
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/task_out_arg_writeback_work
         -P ${CMAKE_CURRENT_SOURCE_DIR}/task_out_arg_writeback_test.cmake
 )
+
+# hif-frontend#26: fork/join is unsupported, and that is reported as a clean
+# diagnostic with exit status 1, not an assert.
+add_test(
+    NAME fork_join_diagnostic
+    COMMAND ${CMAKE_COMMAND}
+        -DVERILOG2HIF_EXECUTABLE=$<TARGET_FILE:verilog2hif>
+        -DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fork_join.v
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/fork_join_diagnostic_work
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/fork_join_diagnostic_test.cmake
+)

@@ -6028,22 +6028,22 @@ par_block:
 K_fork K_join
 {
     yydebug("par_block: K_fork K_join");
-    yyerror("par_block: K_fork K_join is not supported");
+    yyunsupportedParallelBlock();
 }
 | K_fork statement_no_empty_list K_join
 {
     yydebug("par_block: K_fork statement_no_empty_list K_join");
-    yyerror("par_block: K_fork statement_no_empty_list K_join is not supported");
+    yyunsupportedParallelBlock();
 }
 | K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list K_join
 {
     yydebug("par_block: K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list K_join");
-    yyerror("par_block: K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list K_join is not supported");
+    yyunsupportedParallelBlock();
 }
 | K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list statement_no_empty_list K_join
 {
     yydebug("par_block: K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list statement_no_empty_list K_join");
-    yyerror("par_block: K_fork K_COLON /* block_identifier */ IDENTIFIER block_item_declaration_list statement_no_empty_list K_join is not supported");
+    yyunsupportedParallelBlock();
 };
 
 seq_block:
